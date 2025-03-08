@@ -1,6 +1,7 @@
 <?php
 session_start();
 include('../includes/config.php');
+include('sendMail.php');
 
 // Fetch session data
 $admin_username = $_SESSION['login'];
@@ -19,21 +20,37 @@ if (isset($_POST['add_ulsc'])) {
     $contact = $_POST['contact'];
     $random_password = generateRandomPassword(); // Generate a random password
 
-    $sql = "INSERT INTO ulsc (ulsc_id, ulsc_name, dept_id, contact, password) 
-            VALUES (:ulsc_id, :ulsc_name, :dept_id, :contact, :password)";
-    $query = $dbh->prepare($sql);
-    $query->bindParam(':ulsc_id', $ulsc_id, PDO::PARAM_STR);
-    $query->bindParam(':ulsc_name', $ulsc_name, PDO::PARAM_STR);
-    $query->bindParam(':dept_id', $dept_id, PDO::PARAM_INT);
-    $query->bindParam(':contact', $contact, PDO::PARAM_INT);
-    $query->bindParam(':password', $random_password, PDO::PARAM_STR);
+    // Generate email ID
+    $email = $ulsc_id . "@charusat.edu.in";
+    // $hashed_password = password_hash($random_password, PASSWORD_BCRYPT);
+    
+    // Insert data into database
+    $sql = "INSERT INTO ulsc (ulsc_id, ulsc_name, dept_id, contact, email, password) 
+        VALUES (:ulsc_id, :ulsc_name, :dept_id, :contact, :email, :password)";
+        $query = $dbh->prepare($sql);
+        $query->bindParam(':ulsc_id', $ulsc_id, PDO::PARAM_STR);
+        $query->bindParam(':ulsc_name', $ulsc_name, PDO::PARAM_STR);
+        $query->bindParam(':dept_id', $dept_id, PDO::PARAM_INT);
+        $query->bindParam(':contact', $contact, PDO::PARAM_INT);
+        $query->bindParam(':email', $email, PDO::PARAM_STR);
+        $query->bindParam(':password', $random_password, PDO::PARAM_STR); // Store the hashed password
 
-    if ($query->execute()) {
-        echo "<script>window.location.href='addulsc.php';</script>";
-    } else {
-        echo "<script>alert('Error adding ULSC');</script>";
-    }
+
+        if ($query->execute()) {
+            // Send email
+            if (sendULSCEmail($ulsc_name, $ulsc_id, $random_password)) {
+                echo "<script>alert('ULSC added and email sent successfully!');</script>";
+            } else {
+                echo "<script>alert('ULSC added but email sending failed!');</script>";
+            }
+            
+            echo "<script>window.location.href='addulsc.php';</script>";
+        } else {
+            echo "<script>alert('Error adding ULSC');</script>";
+        }
+        
 }
+
 
 // Fetch departments from database
 $sql = "SELECT dept_id, dept_name FROM departments";

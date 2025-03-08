@@ -363,24 +363,21 @@ if (isset($_POST['login'])) {
                             <form id="stripe-login" method="POST">
                                 
                                 <div class="field padding-bottom--24">
-                                    <label for="email">E mail</label>
+                                    <label for="admin-id">Admin ID</label>
                                     <input type="text" name="username">
                                 </div>
                                 <div class="field padding-bottom--24">
-                                    <div class="grid--50-50">
                                         <label for="password">Password</label>
-                                        <div class="reset-pass">
-                                            <a href="#">Forgot your password?</a>
-                                        </div>
-                                    </div>
-                                    <input type="password" name="password">
+                                        <input type="password" name="password">
+                                </div>
+                                <div class="reset-pass">
+                                        <a href="#">Forgot your password?</a>
                                 </div>
                                 <div class="field padding-bottom--24">
-                                    <input type="submit" name="login" value="Continue">
+                                    <input type="submit" name="login" value="Login">
                                 </div>
                             </form>
                         </div>
-                
                 </div>
             </div>
         </div>
