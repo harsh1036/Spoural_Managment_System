@@ -96,69 +96,67 @@ $events = $query->fetchAll(PDO::FETCH_ASSOC);
 
     <div class="home-content">
         <div class="home-page">
-        <section class="new-admin">
-                <h2><?= !empty($event_id) ? 'Edit Event' : 'New Event' ?></h2>
-                <form method="post" action="addevent.php">
-                    <input type="hidden" name="event_id" value="<?= htmlspecialchars($event_id) ?>">
+        <div class="main-content">
+            <section class="event-form">
+            <h2><?= !empty($event_id) ? 'Edit Event' : 'New Event' ?></h2>
+            <form method="post" action="addevent.php" class="event-input-form">
+                <input type="hidden" name="event_id" value="<?= htmlspecialchars($event_id) ?>">
 
-                    <label>Event Name:</label>
-                    <input type="text" name="event_name" value="<?= htmlspecialchars($event_name) ?>" required>
+                <label>Event Name:</label>
+                <input type="text" name="event_name" class="input-field" value="<?= htmlspecialchars($event_name) ?>" required><br><br>
 
-                    <label>Event Type:</label>
-                    <input type="radio" name="event_type" value="Sports" <?= ($event_type == 'Sports') ? 'checked' : '' ?>
-                        required> Sports
-                    <input type="radio" name="event_type" value="Cultural" <?= ($event_type == 'Cultural') ? 'checked' : '' ?> required> Cultural
-                    <br><br>
-                    <label>Min Participants:</label>
-                    <input type="number" name="min_participants" value="<?= htmlspecialchars($min_participants) ?>" required>
+                <label>Event Type:</label>
+                <input type="radio" name="event_type" value="Sports" <?= ($event_type == 'Sports') ? 'checked' : '' ?> required> Sports
+                <input type="radio" name="event_type" value="Cultural" <?= ($event_type == 'Cultural') ? 'checked' : '' ?> required> Cultural<br><br>
 
-                    <label>Max Participants:</label>
-                    <input type="number" name="max_participants" value="<?= htmlspecialchars($max_participants) ?>" required>
-                    <br><br><center>
-                    <button type="submit" name="save_event"><?= !empty($event_id) ? 'Submit' : 'Submit' ?></button>
-                    </center>
-                </form>
+                <label>Min Participants:</label>
+                <input type="number" name="min_participants" class="input-field" value="<?= htmlspecialchars($min_participants) ?>" required><br><br>
+
+                <label>Max Participants:</label>
+                <input type="number" name="max_participants" class="input-field" value="<?= htmlspecialchars($max_participants) ?>" required>
+
+                <button type="submit" name="save_event" class="submit-button"><?= !empty($event_id) ? 'Update' : 'Submit' ?></button>
+            </form>
             </section>
 
-            <section class="view-admin-details">
-            <h2>View Events</h2>
-                <div>
-                    <table border="2px" class="table table-bordered table-striped small-table">
-                        <thead>
+            <section class="event-table">
+                <h2>View Events</h2>
+                <table class="styled-table">
+                    <thead>
+                        <tr>
+                            <th>Event ID</th>
+                            <th>Event Name</th>
+                            <th>Event Type</th>
+                            <th>Min Participants</th>
+                            <th>Max Participants</th>
+                            <th>Edit</th>
+                            <th>Remove</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($events as $event) { ?>
                             <tr>
-                                <th>Event ID</th>
-                                <th>Event Name</th>
-                                <th>Event Type</th>
-                                <th>Min Participants</th>
-                                <th>Max Participants</th>
-                                <th>Edit</th>
-                                <th>Remove</th>
+                                <td><?= $event['id'] ?></td>
+                                <td><?= htmlspecialchars($event['event_name']) ?></td>
+                                <td><?= htmlspecialchars($event['event_type']) ?></td>
+                                <td><?= htmlspecialchars($event['min_participants']) ?></td>
+                                <td><?= htmlspecialchars($event['max_participants']) ?></td>
+                                <td>
+                                    <a href="addevent.php?edit_id=<?= $event['id'] ?>">
+                                        <img src="../assets/images/edit.jpg" alt="Edit" width="20" height="20">
+                                    </a>
+                                </td>
+                                <td>
+                                    <a href="addevent.php?delete_id=<?= $event['id'] ?>" onclick="return confirm('Are you sure?')">
+                                        <img src="../assets/images/delete.jpg" alt="Delete" width="20" height="20">
+                                    </a>
+                                </td>
                             </tr>
-                        </thead>
-                        <tbody>
-                            <?php foreach ($events as $event) { ?>
-                                <tr>
-                                    <td><?= $event['id'] ?></td>
-                                    <td><?= htmlspecialchars($event['event_name']) ?></td>
-                                    <td><?= htmlspecialchars($event['event_type']) ?></td>
-                                    <td><?= htmlspecialchars($event['min_participants']) ?></td>
-                                    <td><?= htmlspecialchars($event['max_participants']) ?></td>
-                                    <td>
-                                        <a href="addevent.php?edit_id=<?= $event['id'] ?>">
-                                            <img src="../assets/images/edit.jpg" alt="Edit" width="20" height="20">
-                                        </a>
-                                    </td>
-
-                                    <td><a href="addevent.php?delete_id=<?= $event['id'] ?>"
-                                            onclick="return confirm('Are you sure?')">
-                                            <img src="../assets/images/delete.jpg" alt="Edit" width="20" height="20">
-                                        </a></td>
-                                </tr>
-                            <?php } ?>
-                        </tbody>
-                    </table>
-                </div>
+                        <?php } ?>
+                    </tbody>
+                </table>
             </section>
+        </div>
         </div>
     </div>
                         </section>
