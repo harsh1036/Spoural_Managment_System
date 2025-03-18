@@ -49,6 +49,12 @@ $admin_username = $_SESSION['login'];
                     <span class="links_name">ADD SCHEDULE</span>
                 </a>
             </li>
+            <li>
+                <a href="uploaddata.php">
+                <i class='bx bx-box'></i>
+                    <span class="links_name">Upload Data</span>
+                </a>
+            </li>
 
         </ul>
     </div>
