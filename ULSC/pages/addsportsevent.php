@@ -41,63 +41,71 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $min_participants = (int) $_POST['minParticipants'];
     $max_participants = (int) $_POST['maxParticipants'];
 
-    // Count number of participants being added
-    $num_participants = count($student_ids);
-
-    // Check current participants count in the database
+    // Check current participant count
     $sql = "SELECT COUNT(*) FROM participants WHERE event_id = :event_id";
     $query = $dbh->prepare($sql);
     $query->bindParam(':event_id', $event_id, PDO::PARAM_INT);
     $query->execute();
     $current_count = (int) $query->fetchColumn();
 
-    // Calculate total participants after adding new ones
-    $total_participants = $current_count + $num_participants;
-
-    // Ensure participant count is within limits
-    if ($total_participants > $max_participants) {
-        echo "<script>alert('Cannot add participants. Exceeds maximum limit.');</script>";
-    } else {
-        // Insert each participant into the database
-        $sql = "INSERT INTO participants (event_id, student_id, dept_id) VALUES (:event_id, :student_id, :dept_id)";
-        $query = $dbh->prepare($sql);
-
-        foreach ($student_ids as $student_id) {
-            // Check if student is already registered for this event
-            $checkSql = "SELECT COUNT(*) FROM participants WHERE event_id = :event_id AND student_id = :student_id";
-            $checkQuery = $dbh->prepare($checkSql);
-            $checkQuery->bindParam(':event_id', $event_id, PDO::PARAM_INT);
-            $checkQuery->bindParam(':student_id', $student_id, PDO::PARAM_STR);
-            $checkQuery->execute();
-            $exists = (int) $checkQuery->fetchColumn();
-        
-            if ($exists > 0) {
-                echo "<script>alert('Student ID $student_id is already registered for this event.');</script>";
-            } else {
-                // Insert only if student is not already registered
-                $sql = "INSERT INTO participants (event_id, student_id, dept_id) VALUES (:event_id, :student_id, :dept_id)";
-                $query = $dbh->prepare($sql);
-                $query->bindParam(':event_id', $event_id, PDO::PARAM_INT);
-                $query->bindParam(':student_id', $student_id, PDO::PARAM_STR);
-                $query->bindParam(':dept_id', $dept_id, PDO::PARAM_INT);
-                $query->execute();
-            }
-        }
-
-
-        echo "<script>alert('Participants added successfully!'); window.location.href='ulscdashboard.php';</script>";
+    // Validate total participants
+    $num_participants = count($student_ids);
+    if (($current_count + $num_participants) > $max_participants) {
+        echo "<script>alert('Cannot add participants. Exceeds maximum limit.'); window.location.href='addculturalevent.php';</script>";
+        exit;
     }
+
+    // Prepare Insert Query
+    $success = true; // Track overall success
+    $errorFound = false; // Track if any student is already registered
+    
+    foreach ($student_ids as $student_id) {
+        // Ensure student isn't already registered
+        $checkSql = "SELECT COUNT(*) FROM participants WHERE event_id = :event_id AND student_id = :student_id";
+        $checkQuery = $dbh->prepare($checkSql);
+        $checkQuery->bindParam(':event_id', $event_id, PDO::PARAM_INT);
+        $checkQuery->bindParam(':student_id', $student_id, PDO::PARAM_STR);
+        $checkQuery->execute();
+        $exists = (int) $checkQuery->fetchColumn();
+    
+        if ($exists > 0) {
+            echo "<script>alert('Student ID $student_id is already registered for this event.');</script>";
+            $errorFound = true;
+        }
+    }
+    
+    // If any error is found, stop execution and redirect
+    if ($errorFound) {
+        echo "<script>alert('Some students are already registered. Please check and try again.'); window.location.href='addculturalevent.php';</script>";
+        exit;
+    }
+    
+    // Proceed with inserting valid students
+    $sql = "INSERT INTO participants (event_id, student_id, dept_id) VALUES (:event_id, :student_id, :dept_id)";
+    $query = $dbh->prepare($sql);
+    
+    foreach ($student_ids as $student_id) {
+        $query->bindParam(':event_id', $event_id, PDO::PARAM_INT);
+        $query->bindParam(':student_id', $student_id, PDO::PARAM_STR);
+        $query->bindParam(':dept_id', $dept_id, PDO::PARAM_INT);
+        $query->execute();
+    }
+    
+    echo "<script>alert('Participants added successfully!'); window.location.href='ulscdashboard.php';</script>";
+    exit;
+    
 }
 
 
 $query = $dbh->prepare("
-    SELECT e.* 
+    SELECT e.*
     FROM events e
-    LEFT JOIN participants p ON e.id = p.event_id
-    GROUP BY e.id
-    HAVING COUNT(p.student_id) = 0
+    WHERE NOT EXISTS (
+        SELECT 1 FROM participants p WHERE p.event_id = e.id
+    )
     ORDER BY e.id DESC
 ");
+
 $query->execute();
 $events = $query->fetchAll(PDO::FETCH_ASSOC);
 
