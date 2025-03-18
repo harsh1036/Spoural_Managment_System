@@ -24,16 +24,16 @@ $query->bindParam(':ulsc_id', $ulsc_id, PDO::PARAM_STR);
 $query->execute();
 $ulsc = $query->fetch(PDO::FETCH_ASSOC);
 
+// **Check if query returned data**
 if (!$ulsc) {
-    echo "<script>alert('ULSC member not found'); window.location.href='ulsc_dashboard.php';</script>";
-    exit;
+    die("<script>alert('ULSC member not found. Please check your session data.'); window.location.href='ulsc_dashboard.php';</script>");
 }
 
-// Store ULSC name and department name
+// Store ULSC's department ID safely
+$dept_id = $ulsc['dept_id'];
 $ulsc_name = htmlspecialchars($ulsc['ulsc_name']);
 $dept_name = htmlspecialchars($ulsc['dept_name']);
 
-$dept_id = $ulsc['dept_id']; // Auto-assign dept_id
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $event_id = $_POST['event']; 
@@ -59,23 +59,48 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         echo "<script>alert('Cannot add participants. Exceeds maximum limit.');</script>";
     } else {
         // Insert each participant into the database
-        $sql = "INSERT INTO participants (event_id, student_id) VALUES (:event_id, :student_id)";
+        $sql = "INSERT INTO participants (event_id, student_id, dept_id) VALUES (:event_id, :student_id, :dept_id)";
         $query = $dbh->prepare($sql);
 
         foreach ($student_ids as $student_id) {
-            $query->bindParam(':event_id', $event_id, PDO::PARAM_INT);
-            $query->bindParam(':student_id', $student_id, PDO::PARAM_STR);
-            $query->execute();
+            // Check if student is already registered for this event
+            $checkSql = "SELECT COUNT(*) FROM participants WHERE event_id = :event_id AND student_id = :student_id";
+            $checkQuery = $dbh->prepare($checkSql);
+            $checkQuery->bindParam(':event_id', $event_id, PDO::PARAM_INT);
+            $checkQuery->bindParam(':student_id', $student_id, PDO::PARAM_STR);
+            $checkQuery->execute();
+            $exists = (int) $checkQuery->fetchColumn();
+        
+            if ($exists > 0) {
+                echo "<script>alert('Student ID $student_id is already registered for this event.');</script>";
+            } else {
+                // Insert only if student is not already registered
+                $sql = "INSERT INTO participants (event_id, student_id, dept_id) VALUES (:event_id, :student_id, :dept_id)";
+                $query = $dbh->prepare($sql);
+                $query->bindParam(':event_id', $event_id, PDO::PARAM_INT);
+                $query->bindParam(':student_id', $student_id, PDO::PARAM_STR);
+                $query->bindParam(':dept_id', $dept_id, PDO::PARAM_INT);
+                $query->execute();
+            }
         }
+
 
         echo "<script>alert('Participants added successfully!'); window.location.href='ulscdashboard.php';</script>";
     }
 }
 
 
-$query = $dbh->prepare("SELECT * FROM events ORDER BY id DESC");
+$query = $dbh->prepare("
+    SELECT e.* 
+    FROM events e
+    LEFT JOIN participants p ON e.id = p.event_id
+    GROUP BY e.id
+    HAVING COUNT(p.student_id) = 0
+    ORDER BY e.id DESC
+");
 $query->execute();
 $events = $query->fetchAll(PDO::FETCH_ASSOC);
+
 ?>
 
 <!DOCTYPE html>
@@ -102,7 +127,7 @@ $events = $query->fetchAll(PDO::FETCH_ASSOC);
         <section>
 <!-- Add Participant Form -->
 <form action="addsportsevent.php" method="POST">
-    <label for="eventSelect">Select Event:</label>
+    <label for="eventSelect">Select Sport Event:</label>
     <select id="eventSelect" name="event" onchange="showParticipantsForm()" required>
         <option value="">Select Event...</option>
         <?php foreach ($events as $event) : ?>
@@ -118,12 +143,10 @@ $events = $query->fetchAll(PDO::FETCH_ASSOC);
         <input type="hidden" id="minParticipants" name="minParticipants" value="">
         <input type="hidden" id="maxParticipants" name="maxParticipants" value="">
         <label>Enter Participant IDs:</label>
-        <div id="participantFields">
-            <div class="participant-entry">
-                <input type="text" name="student_id[]" placeholder="Enter Student ID" required>
-                <button type="button" class="add-btn" onclick="addParticipantField()">+</button><br>
-            </div>
-        </div>
+        <div id="participantFields"></div> 
+        <!-- Add Button Outside of the Participant Fields -->
+        <button type="button" class="add-btn" onclick="addParticipantField()">+</button>
+
     </div>
 
     <button type="submit" class="submit">Add Participants</button>
@@ -138,6 +161,7 @@ $events = $query->fetchAll(PDO::FETCH_ASSOC);
 <?php
                         include_once('../includes/footer.php');
         ?>
+
         <script>
             function openNav() {
             document.getElementById("mySidenav").classList.add("open");
@@ -185,69 +209,97 @@ $events = $query->fetchAll(PDO::FETCH_ASSOC);
         
     
             function showParticipantsForm() {
-        var eventSelect = document.getElementById("eventSelect");
-        var selectedOption = eventSelect.options[eventSelect.selectedIndex];
-        if (selectedOption.value) {
-            var min = selectedOption.getAttribute("data-min");
-            var max = selectedOption.getAttribute("data-max");
+            var eventSelect = document.getElementById("eventSelect");
+            var selectedOption = eventSelect.options[eventSelect.selectedIndex];
 
-            document.getElementById("minParticipants").value = min;
-            document.getElementById("maxParticipants").value = max;
-            document.getElementById("participantsContainer").style.display = "block";
-        } else {
-            document.getElementById("participantsContainer").style.display = "none";
+            if (selectedOption.value) {
+                var min = parseInt(selectedOption.getAttribute("data-min"), 10);
+                var max = parseInt(selectedOption.getAttribute("data-max"), 10);
+
+                document.getElementById("minParticipants").value = min;
+                document.getElementById("maxParticipants").value = max;
+                document.getElementById("participantsContainer").style.display = "block";
+
+                generateParticipantFields(min, max);
+            } else {
+                document.getElementById("participantsContainer").style.display = "none";
+            }
         }
-    }
+
+        function generateParticipantFields(min, max) {
+        var container = document.getElementById("participantFields");
+        container.innerHTML = ""; // Clear previous fields
+
+        for (let i = 0; i < min; i++) {
+            addParticipantField();
+        }
+
+        updateAddButtonState(min);
+    }
+
+
+    function removeParticipantField(button) {
+    var container = document.getElementById("participantFields");
+    var currentCount = container.getElementsByClassName("participant-entry").length;
+    var minParticipants = parseInt(document.getElementById("minParticipants").value, 10);
+
+    if (currentCount > minParticipants) {
+        container.removeChild(button.parentElement);
+        updateAddButtonState(currentCount - 1);
+    } else {
+        alert("You cannot remove participants below the minimum required.");
+    }
+}
+
+
+function updateAddButtonState(currentCount) {
+        var maxParticipants = parseInt(document.getElementById("maxParticipants").value, 10);
+        var addButton = document.querySelector(".add-btn");
+        addButton.disabled = currentCount >= maxParticipants;
+    }
+
+
+
+
+
 
     
     
     function addParticipantField() {
-        var container = document.getElementById("participantFields");
-    
-        var newDiv = document.createElement("div");
-        newDiv.classList.add("participant-entry");
-    
-        var newInput = document.createElement("input");
-        newInput.type = "text";
-        newInput.name = "student_id[]";
-        newInput.placeholder = "Enter Student ID";
-        newInput.required = true;
-    
-        var removeBtn = document.createElement("button");
-        removeBtn.type = "button";
-        removeBtn.innerHTML = "-";
-        removeBtn.classList.add("remove-btn");
-        removeBtn.onclick = function () {
-            container.removeChild(newDiv);
-        };
-    
-        newDiv.appendChild(newInput);
-        newDiv.appendChild(removeBtn);
-        container.appendChild(newDiv);
-        }
-    
-        function fetchEventLimits() {
-        var eventId = document.getElementById("eventSelect").value;
-        if (eventId !== "") {
-            var xhr = new XMLHttpRequest();
-            xhr.open("POST", "fetch_event_limits.php", true);
-            xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
-            xhr.onreadystatechange = function () {
-                if (xhr.readyState === 4 && xhr.status === 200) {
-                    console.log("Response:", xhr.responseText); // Debugging
-                    var response = JSON.parse(xhr.responseText);
-                    if (response.success) {
-                        console.log("Min:", response.minParticipants, "Max:", response.maxParticipants);
-                        document.getElementById("minParticipants").value = response.minParticipants;
-                        document.getElementById("maxParticipants").value = response.maxParticipants;
-                    } else {
-                        console.error("Failed to fetch event limits.");
-                    }
-                }
-            };
-            xhr.send("event_id=" + eventId);
-        }
+    var container = document.getElementById("participantFields");
+    var currentCount = container.getElementsByClassName("participant-entry").length;
+    var maxParticipants = parseInt(document.getElementById("maxParticipants").value, 10);
+
+    if (currentCount >= maxParticipants) {
+        alert("You cannot add more participants than the allowed limit.");
+        return;
     }
+
+    var newDiv = document.createElement("div");
+    newDiv.classList.add("participant-entry");
+
+    var newInput = document.createElement("input");
+    newInput.type = "text";
+    newInput.name = "student_id[]";
+    newInput.placeholder = "Enter Student ID";
+    newInput.required = true;
+
+    var removeBtn = document.createElement("button");
+    removeBtn.type = "button";
+    removeBtn.innerHTML = "-";
+    removeBtn.classList.add("remove-btn");
+    removeBtn.onclick = function () {
+        removeParticipantField(this);
+    };
+
+    newDiv.appendChild(newInput);
+    newDiv.appendChild(removeBtn);
+    container.appendChild(newDiv);
+
+    updateAddButtonState(currentCount + 1);
+}
+
+
     
     
     

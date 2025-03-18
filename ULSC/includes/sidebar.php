@@ -31,7 +31,7 @@ $admin_username = $_SESSION['login'];
                 </a>
             </li>
             <li>
-                <a href="viewsportsevent.php">
+                <a href="addculturalevent.php">
                     <i class='bx bx-box'></i>
                     <span class="links_name">Cultural Entry</span>
                 </a>

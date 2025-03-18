@@ -112,7 +112,7 @@ $events = $query->fetchAll(PDO::FETCH_ASSOC);
     <div class="home-page">
         <section class="new-admin">
             <form method="POST" action="" style="padding-top:50px">
-                <label for="event_select">Select Cultural Event:</label>
+                <label for="event_select">Select Sports Event:</label>
                 <select name="selected_event" id="event_select">
                     <option value="">-- Select Event --</option>
                     <?php 

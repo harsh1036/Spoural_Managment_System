@@ -15,7 +15,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
         if ($user && password_verify($password, $user['password'])) {
             $_SESSION['login'] = $user['ulsc_name'];
-            $_SESSION['ulsc_id'] = $user['id'];
+            $_SESSION['ulsc_id'] = $user['ulsc_id'];
             echo "<script>window.location.href='pages/ulscdashboard.php';</script>";
             exit();
         } else {
