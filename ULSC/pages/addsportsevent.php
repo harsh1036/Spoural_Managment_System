@@ -258,13 +258,6 @@ function updateAddButtonState(currentCount) {
         addButton.disabled = currentCount >= maxParticipants;
     }
 
-
-
-
-
-
-    
-    
     function addParticipantField() {
     var container = document.getElementById("participantFields");
     var currentCount = container.getElementsByClassName("participant-entry").length;
@@ -275,6 +268,7 @@ function updateAddButtonState(currentCount) {
         return;
     }
 
+    // Create new input field
     var newDiv = document.createElement("div");
     newDiv.classList.add("participant-entry");
 
@@ -283,6 +277,14 @@ function updateAddButtonState(currentCount) {
     newInput.name = "student_id[]";
     newInput.placeholder = "Enter Student ID";
     newInput.required = true;
+
+    // **Check for duplicate entry on input change**
+    newInput.addEventListener("change", function () {
+        if (isDuplicateStudentID(newInput.value)) {
+            alert("This student ID has already been added!");
+            newInput.value = ""; // Clear duplicate entry
+        }
+    });
 
     var removeBtn = document.createElement("button");
     removeBtn.type = "button";
@@ -296,15 +298,23 @@ function updateAddButtonState(currentCount) {
     newDiv.appendChild(removeBtn);
     container.appendChild(newDiv);
 
-    updateAddButtonState(currentCount + 1);
+    updateAddButtonState();
 }
 
+// **Function to Check for Duplicate Student ID**
+function isDuplicateStudentID(studentID) {
+    var inputs = document.querySelectorAll("input[name='student_id[]']");
+    var count = 0;
 
-    
-    
-    
-    
-    
+    inputs.forEach(input => {
+        if (input.value === studentID) {
+            count++;
+        }
+    });
+
+    return count > 1; // If count > 1, then it's a duplicate
+}
+
     </script>
     </body>
 
