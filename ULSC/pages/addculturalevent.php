@@ -17,8 +17,9 @@ if (!isset($_SESSION['ulsc_id'])) {
 $ulsc_id = $_SESSION['ulsc_id'];
 $sql = "SELECT u.dept_id, d.dept_name, u.ulsc_name 
         FROM ulsc u 
-        JOIN departments d ON u.dept_id = d.id 
+        JOIN departments d ON u.dept_id = d.dept_id 
         WHERE u.ulsc_id = :ulsc_id";
+
 $query = $dbh->prepare($sql);
 $query->bindParam(':ulsc_id', $ulsc_id, PDO::PARAM_STR);
 $query->execute();
@@ -39,61 +40,73 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $student_ids = $_POST['student_id'];
     $min_participants = (int) $_POST['minParticipants'];
     $max_participants = (int) $_POST['maxParticipants'];
+    $captain_id = $_POST['captain_id'] ?? null;
 
-    // Check current participant count
+    // Validate participant count
     $sql = "SELECT COUNT(*) FROM participants WHERE event_id = :event_id";
     $query = $dbh->prepare($sql);
     $query->bindParam(':event_id', $event_id, PDO::PARAM_INT);
     $query->execute();
     $current_count = (int) $query->fetchColumn();
 
-    // Validate total participants
     $num_participants = count($student_ids);
     if (($current_count + $num_participants) > $max_participants) {
         echo "<script>alert('Cannot add participants. Exceeds maximum limit.'); window.location.href='addculturalevent.php';</script>";
         exit;
     }
 
-    // Prepare Insert Query
-    $success = true; // Track overall success
-    $errorFound = false; // Track if any student is already registered
-    
+    // Ensure students are not already registered
+    $errorFound = false;
     foreach ($student_ids as $student_id) {
-        // Ensure student isn't already registered
         $checkSql = "SELECT COUNT(*) FROM participants WHERE event_id = :event_id AND student_id = :student_id";
         $checkQuery = $dbh->prepare($checkSql);
         $checkQuery->bindParam(':event_id', $event_id, PDO::PARAM_INT);
         $checkQuery->bindParam(':student_id', $student_id, PDO::PARAM_STR);
         $checkQuery->execute();
-        $exists = (int) $checkQuery->fetchColumn();
-    
-        if ($exists > 0) {
-            echo "<script>alert('Student ID $student_id is already registered for this event.');</script>";
+        if ((int) $checkQuery->fetchColumn() > 0) {
+            echo "<script>alert('Student ID $student_id is already registered.');</script>";
             $errorFound = true;
         }
     }
-    
-    // If any error is found, stop execution and redirect
+
     if ($errorFound) {
         echo "<script>alert('Some students are already registered. Please check and try again.'); window.location.href='addculturalevent.php';</script>";
         exit;
     }
-    
-    // Proceed with inserting valid students
-    $sql = "INSERT INTO participants (event_id, student_id, dept_id) VALUES (:event_id, :student_id, :dept_id)";
+
+    // Validate captain selection
+    if (!$captain_id || !in_array($captain_id, $student_ids)) {
+        echo "<script>alert('Please select a valid captain from the participants.'); window.location.href='addculturalevent.php';</script>";
+        exit;
+    }
+
+    // Ensure no existing captain
+    $checkCaptainSql = "SELECT COUNT(*) FROM participants WHERE event_id = :event_id AND is_captain = 1";
+    $checkCaptainQuery = $dbh->prepare($checkCaptainSql);
+    $checkCaptainQuery->bindParam(':event_id', $event_id, PDO::PARAM_INT);
+    $checkCaptainQuery->execute();
+    if ((int) $checkCaptainQuery->fetchColumn() > 0) {
+        echo "<script>alert('A captain has already been assigned for this event.'); window.location.href='addculturalevent.php';</script>";
+        exit;
+    }
+
+    // Insert Participants and Assign Captain
+    $sql = "INSERT INTO participants (event_id, student_id, dept_id, is_captain) VALUES (:event_id, :student_id, :dept_id, :is_captain)";
     $query = $dbh->prepare($sql);
     
     foreach ($student_ids as $student_id) {
+        $is_captain = ($student_id == $captain_id) ? 1 : 0;
         $query->bindParam(':event_id', $event_id, PDO::PARAM_INT);
         $query->bindParam(':student_id', $student_id, PDO::PARAM_STR);
         $query->bindParam(':dept_id', $dept_id, PDO::PARAM_INT);
+        $query->bindParam(':is_captain', $is_captain, PDO::PARAM_INT);
         $query->execute();
     }
-    
-    echo "<script>alert('Participants added successfully!'); window.location.href='ulscdashboard.php';</script>";
+
+    echo "<script>alert('Participants and captain assigned successfully!'); window.location.href='ulscdashboard.php';</script>";
     exit;
-    
 }
+
 
 
 
@@ -152,6 +165,7 @@ $events = $query->fetchAll(PDO::FETCH_ASSOC);
         <input type="hidden" id="maxParticipants" name="maxParticipants" value="">
         <label>Enter Participant IDs:</label>
         <div id="participantFields"></div> 
+        <input type="hidden" id="captain_id" name="captain_id" value="">
         <button type="button" class="add-btn" onclick="addParticipantField()">+</button>
 
     </div>
@@ -162,12 +176,12 @@ $events = $query->fetchAll(PDO::FETCH_ASSOC);
 
         </div>
     </div>
-                        </section>
+</section>
 </div>
 
 <?php
-                        include_once('../includes/footer.php');
-        ?>
+    include_once('../includes/footer.php');
+?>
         <script>
             function openNav() {
             document.getElementById("mySidenav").classList.add("open");
@@ -270,6 +284,18 @@ $events = $query->fetchAll(PDO::FETCH_ASSOC);
         }
     });
 
+    // **Radio button for captain selection**
+    var captainRadio = document.createElement("input");
+    captainRadio.type = "radio";
+    captainRadio.name = "captain";
+    captainRadio.value = currentCount + 1; // Unique value
+    captainRadio.onclick = function () {
+        setCaptain(this);
+    };
+
+    var captainLabel = document.createElement("label");
+    captainLabel.textContent = "Captain";
+
     var removeBtn = document.createElement("button");
     removeBtn.type = "button";
     removeBtn.innerHTML = "-";
@@ -279,11 +305,25 @@ $events = $query->fetchAll(PDO::FETCH_ASSOC);
     };
 
     newDiv.appendChild(newInput);
+    newDiv.appendChild(captainRadio);
+    newDiv.appendChild(captainLabel);
     newDiv.appendChild(removeBtn);
     container.appendChild(newDiv);
 
     updateAddButtonState();
 }
+
+function setCaptain(radio) {
+    let inputs = document.getElementsByName("student_id[]");
+    if (inputs[radio.value - 1].value.trim() !== "") {
+        document.getElementById("captain_id").value = inputs[radio.value - 1].value;
+    } else {
+        alert("Captain must have a valid Student ID.");
+        radio.checked = false;
+    }
+}
+
+
 
 // **Function to Check for Duplicate Student ID**
 function isDuplicateStudentID(studentID) {
