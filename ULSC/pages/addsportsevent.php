@@ -347,8 +347,6 @@ function setCaptain(radio) {
     }
 }
 
-
-
 // **Function to Check for Duplicate Student ID**
 function isDuplicateStudentID(studentID) {
     var inputs = document.querySelectorAll("input[name='student_id[]']");
