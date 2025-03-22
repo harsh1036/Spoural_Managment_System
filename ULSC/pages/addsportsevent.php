@@ -264,7 +264,7 @@ $events = $query->fetchAll(PDO::FETCH_ASSOC);
 
             updateAddButtonState(min);
         }
-    function addParticipantField() {
+        function addParticipantField() {
     var container = document.getElementById("participantFields");
     var currentCount = container.getElementsByClassName("participant-entry").length;
     var maxParticipants = parseInt(document.getElementById("maxParticipants").value, 10);
@@ -274,12 +274,10 @@ $events = $query->fetchAll(PDO::FETCH_ASSOC);
         return;
     }
 
-    // **Create a new row (div) for participant entry**
     var newDiv = document.createElement("div");
     newDiv.classList.add("participant-entry");
     newDiv.style.display = "flex";  // Align in row format
 
-    // **Create Student ID Input Field**
     var newInput = document.createElement("input");
     newInput.type = "text";
     newInput.name = "student_id[]";
@@ -287,19 +285,17 @@ $events = $query->fetchAll(PDO::FETCH_ASSOC);
     newInput.classList.add("participant-input");
     newInput.required = true;
 
-    // **Check for duplicate entry on input change**
     newInput.addEventListener("change", function () {
         if (isDuplicateStudentID(newInput.value)) {
             alert("This student ID has already been added!");
-            newInput.value = ""; // Clear duplicate entry
+            newInput.value = "";
         } else {
             updateCaptainRadio(newInput);
         }
     });
 
-    // **Create Captain Selection Radio Button**
     var captainContainer = document.createElement("div");
-    captainContainer.style.textAlign = "center"; // Ensure alignment
+    captainContainer.style.textAlign = "center"; 
     var captainRadio = document.createElement("input");
     captainRadio.type = "radio";
     captainRadio.name = "captain";
@@ -319,21 +315,19 @@ $events = $query->fetchAll(PDO::FETCH_ASSOC);
     };
     captainContainer.appendChild(captainRadio);
 
-    // **Create Remove Button**
     var removeButton = document.createElement("button");
-    removeButton.innerHTML = "-"; // Remove icon
+    removeButton.innerHTML = "-";
     removeButton.classList.add("remove-btn");
     removeButton.onclick = function () {
         removeParticipantField(newDiv);
     };
 
-    // **Append Elements to Row**
     newDiv.appendChild(newInput);
     newDiv.appendChild(captainContainer);
     newDiv.appendChild(removeButton);
-
-    // **Add to Container**
     container.appendChild(newDiv);
+
+    updateAddButtonState();
 }
 
 
@@ -371,19 +365,19 @@ function isDuplicateStudentID(studentID) {
     return count > 1; // **Return true if duplicate exists, but don't show an alert here**
 }
 
-        function removeParticipantField(row) {
-            var container = document.getElementById("participantFields");
-            var minParticipants = parseInt(document.getElementById("minParticipants").value, 10);
-            var currentCount = container.getElementsByClassName("participant-entry").length;
+function removeParticipantField(element) {
+    var container = document.getElementById("participantFields");
+    var minParticipants = parseInt(document.getElementById("minParticipants").value, 10);
+    var currentCount = container.getElementsByClassName("participant-entry").length;
 
-            if (currentCount > minParticipants) {
-                container.removeChild(row);
-            } else {
-                alert("You cannot remove participants below the minimum required.");
-            }
+    if (currentCount > minParticipants) {
+        element.remove();
+    } else {
+        alert(`You cannot remove participants below the minimum required (${minParticipants}).`);
+    }
 
-            updateAddButtonState();
-        }
+    updateAddButtonState();
+}
 
         function updateAddButtonState() {
             var container = document.getElementById("participantFields");
