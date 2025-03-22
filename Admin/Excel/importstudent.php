@@ -20,7 +20,7 @@ if (isset($_POST['import'])) {
                 $department_id = $row[3]; 
 
                 // Prepare SQL query with exactly 4 placeholders
-                $sql = "INSERT INTO student (student_id, student_name, contact, department_id) VALUES (?, ?, ?, ?)";
+                $sql = "INSERT INTO student (student_id, student_name, contact, dept_id) VALUES (?, ?, ?, ?)";
                 $stmt = $conn->prepare($sql);
                 if (!$stmt) {
                     die("SQL Error: " . $conn->error);

@@ -443,6 +443,165 @@ nav .profile-details i {
     font-weight: 400;
     color: #333;
 }
+/* Participant Entry Box */
+.participant-entry {
+    display: flex;
+    align-items: center; /* Aligns items vertically */
+    gap: 15px; /* Space between items */
+    padding: 12px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    background: #fff;
+    transition: all 0.3s ease-in-out;
+    margin-bottom: 12px;
+}
+
+
+/* Input Field */
+.participant-input {
+    flex: 1;
+    padding: 8px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    outline: none;
+    transition: border-color 0.3s;
+}
+
+.participant-input:focus {
+    border-color: #007bff;
+}
+
+/* Captain Selection */
+.captain-radio {
+    accent-color: #007bff;
+    margin-left: 5px; /* Ensures spacing */
+}
+
+/* Button Container */
+.remove-btn, .add-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 35px;
+    height: 35px;
+    font-size: 16px;
+    font-weight: bold;
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: all 0.3s ease-in-out;
+}
+
+/* Remove Button */
+.remove-btn {
+    background-color: red;
+    color: white;
+}
+
+.remove-btn:hover {
+    background-color: darkred;
+}
+
+/* Add Button */
+.add-btn {
+    background-color: #28a745;
+    color: white;
+    width: 45px;
+    height: 45px;
+}
+
+.add-btn:hover {
+    background-color: #1e7e34; /* Darker green */
+    transform: scale(1.1);
+}
+
+/* Submit Button */
+.submit-btn {
+    background-color: #007bff;
+    color: white;
+    border: none;
+    padding: 12px 20px;
+    font-size: 16px;
+    font-weight: bold;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.3s ease-in-out;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    display: block;
+    margin: 15px auto;
+    width: 120px;
+    text-align: center;
+}
+
+.submit-btn:hover {
+    background-color: #0056b3;
+    transform: scale(1.05);
+    box-shadow: 0 6px 10px rgba(0, 0, 0, 0.2);
+}
+
+/* Table for Participants */
+.participant-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 15px;
+}
+
+.participant-table th, .participant-table td {
+    border: 1px solid #ddd;
+    padding: 10px;
+    text-align: center;
+
+}
+
+.participant-table th {
+    background-color: #f8f8f8;
+    font-weight: bold;
+}
+
+/* Fix alignment inside table cells */
+.participant-table th, .participant-table td {
+    border: 1px solid #ddd;
+    padding: 12px;
+    text-align: center; /* Ensures content is properly aligned */
+    vertical-align: middle; /* Centers elements inside */
+}
+
+/* Ensure the radio button and remove button are centered */
+.radio-container, .action-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Set a fixed width for radio button column */
+.participant-table td:nth-child(2) {
+    width: 80px;
+}
+
+/* Set a fixed width for the action button column */
+.participant-table td:nth-child(3) {
+    width: 80px;
+}
+.alert {
+    padding: 12px;
+    margin-top: 10px;
+    border-radius: 6px;
+    font-weight: bold;
+    text-align: center;
+}
+
+.alert-success {
+    background-color: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
+}
+
+.alert-error {
+    background-color: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
+}
+
 
 
 /* Responsive Media Query */
