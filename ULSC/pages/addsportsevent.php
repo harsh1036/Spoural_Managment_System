@@ -55,6 +55,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         echo "<script>alert('Cannot add participants. Exceeds maximum limit.'); window.location.href='addculturalevent.php';</script>";
         exit;
     }
+    
 
     // Ensure students are not already registered
     $errorFound = false;
@@ -116,7 +117,7 @@ $query = $dbh->prepare("
     WHERE NOT EXISTS (
         SELECT 1 FROM participants p WHERE p.event_id = e.id
     )
-    ORDER BY e.id DESC
+    ORDER BY e.event_name ASC
 ");
 
 $query->execute();
