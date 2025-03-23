@@ -39,7 +39,7 @@ $event_id = $event_name = $event_type = $min_participants = $max_participants = 
 
                     <div class="right-side">
                         <a href="addsingleulsc.php">
-                            <div class="box-topic">Single ULSC</div>
+                            <div class="box-topic">Upload Single ULSC</div>
                             <div class="number">
 
                             </div>
@@ -53,7 +53,7 @@ $event_id = $event_name = $event_type = $min_participants = $max_participants = 
                 <div class="box">
                     <div class="right-side">
                         <a href="importulsc.php">
-                            <div class="box-topic">Upload Excel Sheets</div>
+                            <div class="box-topic">Upload Multiple ULSC</div>
                             <div class="number">
 
                             </div>

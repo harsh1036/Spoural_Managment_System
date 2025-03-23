@@ -38,7 +38,7 @@ $admin_username = $_SESSION['login'];
 
                     <div class="right-side">
                         <a href="addsingleevent.php">
-                            <div class="box-topic">Single Event  </div>
+                            <div class="box-topic">Upload Single Event  </div>
                             <div class="number">
 
                             </div>
@@ -52,7 +52,7 @@ $admin_username = $_SESSION['login'];
                 <div class="box">
                     <div class="right-side">
                         <a href="importevent.php">
-                            <div class="box-topic">Upload Excel Sheets  </div>
+                            <div class="box-topic">Upload Multiple Events </div>
                             <div class="number">
 
                             </div>

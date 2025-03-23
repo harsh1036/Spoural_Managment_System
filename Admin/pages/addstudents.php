@@ -39,7 +39,7 @@ $event_id = $event_name = $event_type = $min_participants = $max_participants = 
 
                     <div class="right-side">
                         <a href="addsinglestudent.php">
-                            <div class="box-topic">Single Student</div>
+                            <div class="box-topic">Upload Single Student</div>
                             <div class="number">
 
                             </div>
@@ -53,7 +53,7 @@ $event_id = $event_name = $event_type = $min_participants = $max_participants = 
                 <div class="box">
                     <div class="right-side">
                         <a href="importstudent.php">
-                            <div class="box-topic">Upload Excel Sheets</div>
+                            <div class="box-topic">Upload Multiple Students</div>
                             <div class="number">
 
                             </div>
