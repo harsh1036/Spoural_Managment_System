@@ -38,6 +38,18 @@ if (isset($_POST['import'])) {
     }
 }
 ?>
+<?php
+session_start();
+include('../includes/config.php');
+
+// Check if user is logged in, else redirect to login
+
+
+// Fetch session data
+$admin_username = $_SESSION['login'];
+
+
+?>
 <!DOCTYPE html>
 <html lang="en">
 
@@ -51,6 +63,12 @@ if (isset($_POST['import'])) {
 
 <body class="bg-light">
 
+<div class="home-content">
+        <?php
+        include_once('../includes/sidebar.php');
+        ?> <br><br>
+        <div class="home-content">
+            <br><br>
     <div class="container mt-5">
         <div class="row justify-content-center">
             <div class="col-md-6">
@@ -72,13 +90,11 @@ if (isset($_POST['import'])) {
                         </form>
                     </div>
                 </div>
-                <div class="text-center mt-3">
-                <a href="../pages/admindashboard.php" class="btn btn-outline-secondary">⬅ Back to Dashboard</a>
-                </div>
+               
             </div>
         </div>
     </div>
-
+</div>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 

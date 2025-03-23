@@ -34,8 +34,9 @@ $total_admins = $conn->query("SELECT COUNT(*) AS total FROM admins")->fetch_asso
         <?php
         include_once('../includes/sidebar.php');
         ?>
-
-<div class="home-content">
+ <br><br><br>
+        <div class="home-content">
+            <br><br>
         <div class="overview-boxes">
             <div class="box">
                 <div class="right-side">

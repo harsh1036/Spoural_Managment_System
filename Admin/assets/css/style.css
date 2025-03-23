@@ -222,7 +222,7 @@ nav .profile-details i {
     flex-wrap: wrap;
     gap: 20px;
     justify-content: left;
-    padding: 90px 30px; /* Increased padding */
+    padding: 0px 30px; /* Increased padding */
     margin-bottom: 26px;
 }
 
@@ -230,18 +230,18 @@ nav .profile-details i {
     display: flex;
     align-items: center;
     justify-content: left;
-    width: calc(35% - 25px);
+    width: calc(50% - 30px);
     background: #fff;
     padding: 50px 15px 20px 25px; /* Top, Right, Bottom, Left */
-    border-radius: 12px;
+    border-radius: 20px;
     box-shadow: 0 5px 10px rgba(0, 0, 0, 0.1);
     position: relative;
 }
 
 
 .overview-boxes .box-topic {
-    font-size: 20px;
-    font-weight: 500;
+    font-size: 25px;
+    font-weight: 1000;
 }
 
 .home-content .box .number {
@@ -266,6 +266,7 @@ nav .profile-details i {
     border-radius: 50%;
     color: #fff;
     font-size: 12px;
+    
     margin-right: 5px;
 }
 

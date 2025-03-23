@@ -14,20 +14,22 @@ if (isset($_POST['import'])) {
 
             foreach (array_slice($rows, 1) as $row) {
                 // Ensure you extract the right number of columns
-                $student_id = $row[0]; 
-                $student_name = $row[1]; 
-                $contact = $row[2]; 
-                $department_id = $row[3]; 
+                $id = $row[0]; 
+                $event_name = $row[1]; 
+                $event_type = $row[2]; 
+                $min_participants = $row[3]; 
+                $max_participants = $row[4];
 
+            
                 // Prepare SQL query with exactly 4 placeholders
-                $sql = "INSERT INTO student (student_id, student_name, contact, dept_id) VALUES (?, ?, ?, ?)";
+                $sql = "INSERT INTO events (id, event_name, event_type, min_participants,max_participants) VALUES (?,?, ?, ?, ?)";
                 $stmt = $conn->prepare($sql);
                 if (!$stmt) {
                     die("SQL Error: " . $conn->error);
                 }
 
                 // Ensure data types match: 's' (string), 's' (string), 's' (string for contact), 'i' (integer)
-                $stmt->bind_param("sssi", $student_id, $student_name, $contact, $department_id);
+                $stmt->bind_param("issii",$id,$event_name,$event_type,$min_participants,$max_participants);
                 $stmt->execute();
             }
 
@@ -39,6 +41,17 @@ if (isset($_POST['import'])) {
         echo "Error uploading file!";
     }
 }
+?><?php
+session_start();
+include('../includes/config.php');
+
+// Check if user is logged in, else redirect to login
+
+
+// Fetch session data
+$admin_username = $_SESSION['login'];
+
+
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -46,19 +59,23 @@ if (isset($_POST['import'])) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Import Student Data | SPORUAL</title>
+    <title>Import Excel | SPORUAL Event Management</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="../assets/css/style.css"> <!-- Custom Styles -->
+    <link rel="stylesheet" href="../assets/css/style.css"> <!-- Your custom styles -->
 </head>
 
 <body class="bg-light">
-
+<?php
+        include_once('../includes/sidebar.php');
+        ?> <br><br>
+        <div class="home-content">
+            <br><br>
     <div class="container mt-5">
         <div class="row justify-content-center">
             <div class="col-md-6">
                 <div class="card shadow-lg border-0 rounded-3">
                     <div class="card-header bg-primary text-white text-center">
-                        <h4>📂 Import Student Data</h4>
+                        <h4>📂 Import Event Data</h4>
                     </div>
                     <div class="card-body">
                         <form method="POST" enctype="multipart/form-data">
@@ -74,9 +91,7 @@ if (isset($_POST['import'])) {
                         </form>
                     </div>
                 </div>
-                <div class="text-center mt-3">
-                <a href="../pages/admindashboard.php" class="btn btn-outline-secondary">⬅ Back to Dashboard</a>
-                </div>
+               
             </div>
         </div>
     </div>

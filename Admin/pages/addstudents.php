@@ -22,7 +22,7 @@ $event_id = $event_name = $event_type = $min_participants = $max_participants = 
     <title>Spoural Management System</title>
     <link rel="stylesheet" href="../assets/css/style.css">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-
+    
 
 </head>
 
@@ -38,8 +38,8 @@ $event_id = $event_name = $event_type = $min_participants = $max_participants = 
                 <div class="box">
 
                     <div class="right-side">
-                        <a href="addsingleulsc.php">
-                            <div class="box-topic">Single ULSC</div>
+                        <a href="addsinglestudent.php">
+                            <div class="box-topic">Single Student</div>
                             <div class="number">
 
                             </div>
@@ -52,7 +52,7 @@ $event_id = $event_name = $event_type = $min_participants = $max_participants = 
                 </div>
                 <div class="box">
                     <div class="right-side">
-                        <a href="importulsc.php">
+                        <a href="importstudent.php">
                             <div class="box-topic">Upload Excel Sheets</div>
                             <div class="number">
 
@@ -68,8 +68,8 @@ $event_id = $event_name = $event_type = $min_participants = $max_participants = 
                 </section>
             </div>
             <?php
-                        include_once('../includes/footer.php');
-        ?>
+            include_once('../includes/footer.php');
+            ?>
 
 </body>
 

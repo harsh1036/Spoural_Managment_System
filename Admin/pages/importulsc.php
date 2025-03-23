@@ -14,22 +14,22 @@ if (isset($_POST['import'])) {
 
             foreach (array_slice($rows, 1) as $row) {
                 // Ensure you extract the right number of columns
-                $id = $row[0]; 
-                $event_name = $row[1]; 
-                $event_type = $row[2]; 
-                $min_participants = $row[3]; 
-                $max_participants = $row[4];
+                $ulsc_id = $row[0]; 
+                $ulsc_name = $row[1]; 
+                $dept_id = $row[2]; 
+                $contact = $row[3]; 
+               
 
             
                 // Prepare SQL query with exactly 4 placeholders
-                $sql = "INSERT INTO events (id, event_name, event_type, min_participants,max_participants) VALUES (?,?, ?, ?, ?)";
+                $sql = "INSERT INTO ulsc (ulsc_id, ulsc_name, dept_id, contact) VALUES (?,?, ?, ?)";
                 $stmt = $conn->prepare($sql);
                 if (!$stmt) {
                     die("SQL Error: " . $conn->error);
                 }
 
                 // Ensure data types match: 's' (string), 's' (string), 's' (string for contact), 'i' (integer)
-                $stmt->bind_param("issii",$id,$event_name,$event_type,$min_participants,$max_participants);
+                $stmt->bind_param("isii",$ulsc_id,$ulsc_t_name,$dept_id,$contact);
                 $stmt->execute();
             }
 
@@ -41,6 +41,17 @@ if (isset($_POST['import'])) {
         echo "Error uploading file!";
     }
 }
+?><?php
+session_start();
+include('../includes/config.php');
+
+// Check if user is logged in, else redirect to login
+
+
+// Fetch session data
+$admin_username = $_SESSION['login'];
+
+
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -54,13 +65,17 @@ if (isset($_POST['import'])) {
 </head>
 
 <body class="bg-light">
-
+<?php
+        include_once('../includes/sidebar.php');
+        ?> <br><br>
+        <div class="home-content">
+            <br><br>
     <div class="container mt-5">
         <div class="row justify-content-center">
             <div class="col-md-6">
                 <div class="card shadow-lg border-0 rounded-3">
                     <div class="card-header bg-primary text-white text-center">
-                        <h4>📂 Import Event Data</h4>
+                        <h4>📂 Import ULSC Data</h4>
                     </div>
                     <div class="card-body">
                         <form method="POST" enctype="multipart/form-data">
@@ -76,9 +91,7 @@ if (isset($_POST['import'])) {
                         </form>
                     </div>
                 </div>
-                <div class="text-center mt-3">
-                    <a href="../pages/admindashboard.php" class="btn btn-outline-secondary">⬅ Back to Dashboard</a>
-                </div>
+                
             </div>
         </div>
     </div>

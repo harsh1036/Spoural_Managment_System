@@ -25,6 +25,12 @@ $admin_username = $_SESSION['login'];
                 </a>
             </li>
             <li>
+                <a href="addadmin.php">
+                <i class='bx bx-box'></i>
+                    <span class="links_name">ADD ADMIN</span>
+                </a>
+            </li>
+            <li>
                 <a href="addevent.php">
                     <i class='bx bx-box'></i>
                     <span class="links_name">ADD Event</span>
@@ -37,25 +43,20 @@ $admin_username = $_SESSION['login'];
                 </a>
             </li>
        
+           
             <li>
-                <a href="addadmin.php">
+                <a href="addstudents.php">
                 <i class='bx bx-box'></i>
-                    <span class="links_name">ADD ADMIN</span>
+                    <span class="links_name">ADD STUDENT</span>
                 </a>
             </li>
             <li>
-                <a href="schedule_matches.php">
+                <a href="adddepartment.php">
                 <i class='bx bx-box'></i>
-                    <span class="links_name">ADD SCHEDULE</span>
+                    <span class="links_name">ADD DEPARTMENT</span>
                 </a>
             </li>
-            <li>
-                <a href="uploaddata.php">
-                <i class='bx bx-box'></i>
-                    <span class="links_name">Upload Data</span>
-                </a>
-            </li>
-
+            
         </ul>
     </div>
 
