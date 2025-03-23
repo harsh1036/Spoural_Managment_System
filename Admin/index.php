@@ -370,9 +370,7 @@ if (isset($_POST['login'])) {
                                         <label for="password">Password</label>
                                         <input type="password" name="password">
                                 </div>
-                                <div class="reset-pass">
-                                        <a href="Excel/resetpassword1.php">Forgot your password?</a>
-                                </div>
+                               
                                 <div class="field padding-bottom--24">
                                     <input type="submit" name="login" value="Login">
                                 </div>

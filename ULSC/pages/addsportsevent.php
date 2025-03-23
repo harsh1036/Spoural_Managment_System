@@ -117,24 +117,43 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         exit;
     }
 
-    // Ensure only one captain per event
     if ($captain_id) {
         if (!in_array($captain_id, $student_ids)) {
             echo "<script>alert('Captain must be from the selected participants.'); window.location.href='addsportsevent.php';</script>";
             exit;
         }
-
-        $checkCaptainSql = "SELECT student_id FROM participants WHERE event_id = :event_id AND is_captain = 1";
+    
+        // Get the department ID of the new captain
+        $getDeptSql = "SELECT dept_id FROM student WHERE student_id = :captain_id";
+        $getDeptQuery = $dbh->prepare($getDeptSql);
+        $getDeptQuery->bindParam(':captain_id', $captain_id, PDO::PARAM_STR);
+        $getDeptQuery->execute();
+        $captainDept = $getDeptQuery->fetchColumn();
+    
+        if (!$captainDept) {
+            echo "<script>alert('Invalid captain selection.'); window.location.href='addsportsevent.php';</script>";
+            exit;
+        }
+    
+        // Check if a captain already exists for the same event and same department
+        $checkCaptainSql = "SELECT p.student_id 
+                            FROM participants p
+                            JOIN student s ON p.student_id = s.student_id
+                            WHERE p.event_id = :event_id 
+                            AND s.dept_id = :dept_id 
+                            AND p.is_captain = 1";
         $checkCaptainQuery = $dbh->prepare($checkCaptainSql);
         $checkCaptainQuery->bindParam(':event_id', $event_id, PDO::PARAM_INT);
+        $checkCaptainQuery->bindParam(':dept_id', $captainDept, PDO::PARAM_INT);
         $checkCaptainQuery->execute();
         $existingCaptain = $checkCaptainQuery->fetchColumn();
-
+    
         if ($existingCaptain && $existingCaptain != $captain_id) {
-            echo "<script>alert('A different captain is already assigned. Remove them first.'); window.location.href='addsportsevent.php';</script>";
+            echo "<script>alert('A captain from this department is already assigned for this event. Remove them first.'); window.location.href='addsportsevent.php';</script>";
             exit;
         }
     }
+    
 
     // Insert participants
     $sql = "INSERT INTO participants (event_id, student_id, dept_id, is_captain) VALUES (:event_id, :student_id, :dept_id, :is_captain)";

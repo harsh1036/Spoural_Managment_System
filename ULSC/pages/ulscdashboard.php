@@ -12,6 +12,7 @@ $admin_username = $_SESSION['login'];
 $total_events = $conn->query("SELECT COUNT(*) AS total FROM events")->fetch_assoc()['total'];
 $total_ulsc = $conn->query("SELECT COUNT(*) AS total FROM ulsc")->fetch_assoc()['total'];
 $total_admins = $conn->query("SELECT COUNT(*) AS total FROM admins")->fetch_assoc()['total'];
+$total_part = $conn->query("SELECT COUNT(*) AS total FROM participants")->fetch_assoc()['total'];
 
 ?>
 
@@ -41,7 +42,7 @@ $total_admins = $conn->query("SELECT COUNT(*) AS total FROM admins")->fetch_asso
                 <div class="right-side">
                     <div class="box-topic">Events Managed</div>
                     <div class="number">
-                        <?php echo $total_ulsc ?>
+                        <?php echo $total_events ?>
                         </div>
                         <div class="indicator">
                             <i class='bx bx-up-arrow-alt'></i>
@@ -55,7 +56,7 @@ $total_admins = $conn->query("SELECT COUNT(*) AS total FROM admins")->fetch_asso
                     <div class="right-side">
                         <div class="box-topic">Total Participants</div>
                         <div class="number">
-                        <?php echo $total_events ?>
+                        <?php echo $total_part ?>
                         </div>
                         <div class="indicator">
                             <i class='bx bx-up-arrow-alt'></i>
@@ -71,8 +72,8 @@ $total_admins = $conn->query("SELECT COUNT(*) AS total FROM admins")->fetch_asso
         <section class="notifications">
             <h3>Notifications</h3>
             <ul>
-                <li>🔔 <?php echo "10"; ?> students have registered for events.</li>
-                <li>🔔 <?php echo "1"; ?> events are currently being managed.</li>
+                <li>🔔 <?php echo $total_part; ?> students have registered for events.</li>
+                <li>🔔 <?php echo $total_events; ?> events are currently being managed.</li>
             </ul>
         </section>
 

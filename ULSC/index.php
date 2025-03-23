@@ -373,11 +373,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                                 <div class="field padding-bottom--24">
                                     <div class="grid--50-50">
                                         <label for="password">Password</label>
-                                        <div class="reset-pass">
-                                            <a href="#">Forgot your password?</a>
-                                        </div>
+                                      
                                     </div>
                                     <input type="password" name="password">
+                                </div>
+                                <div class="reset-pass">
+                                        <a href="Excel/resetpassword1.php">Forgot your password?</a>
                                 </div>
                                 <div class="field padding-bottom--24">
                                     <input type="submit" name="login" value="Continue">
