@@ -236,7 +236,33 @@ $events = $query->fetchAll(PDO::FETCH_ASSOC);
     <?php include_once('../includes/footer.php'); ?>
 
     <script>
-        function showParticipantsForm() {
+       function openNav() {
+            document.getElementById("mySidenav").classList.add("open");
+        }
+        function closeNav() {
+            document.getElementById("mySidenav").classList.remove("open");
+        }
+        document.addEventListener("click", function(event) {
+            var sidebar = document.getElementById("mySidenav");
+            var sidebarButton = document.querySelector("span[onclick='openNav()']");
+    
+            // Check if the click is outside the sidebar and not on the open button
+            if (!sidebar.contains(event.target) && !sidebarButton.contains(event.target)) {
+                closeNav();
+            }
+        });
+        
+            document.getElementById("searchInput").addEventListener("keyup", function () {
+                let filter = this.value.toLowerCase();
+                let rows = document.querySelectorAll("#participantsTable tbody tr");
+                rows.forEach(row => {
+                    let studentID = row.cells[1].textContent.toLowerCase();
+                    let eventName = row.cells[2].textContent.toLowerCase();
+                    row.style.display = studentID.includes(filter) || eventName.includes(filter) ? "" : "none";
+                });
+            });
+        
+    function showParticipantsForm() {
             var eventSelect = document.getElementById("eventSelect");
             var selectedOption = eventSelect.options[eventSelect.selectedIndex];
 
@@ -254,17 +280,87 @@ $events = $query->fetchAll(PDO::FETCH_ASSOC);
             }
         }
 
-        function generateParticipantFields(min, max) {
+        function addNewParticipantRow() {
+    let tableBody = document.getElementById("participantFields");
+    let rowCount = tableBody.getElementsByTagName("tr").length;
+    let maxParticipants = parseInt(document.getElementById("maxParticipants").value, 10);
+
+    if (rowCount >= maxParticipants) {
+        alert(`You cannot add more than ${maxParticipants} participants.`);
+        return;
+    }
+
+    let newRow = document.createElement("tr");
+    newRow.innerHTML = `
+        <td>
+            <input type="text" name="student_id[]" class="participant-input" placeholder="Enter Student ID" required oninput="updateCaptainRadio(this)" onchange="checkDuplicateID(this)">
+        </td>
+        <td>
+            <input type="radio" name="captain_id" class="captain-radio" value="" onclick="setCaptain(this)">
+        </td>
+        <td>
+            <button type="button" class="remove-btn" onclick="removeRow(this)">-</button>
+        </td>
+    `;
+
+    tableBody.appendChild(newRow);
+}
+        function checkDuplicateID(inputField) {
+            let studentID = inputField.value.trim();
+            if (isDuplicateStudentID(studentID)) {
+                alert("This student ID has already been added!");
+                inputField.value = "";
+            }
+        }
+
+
+
+        function updateCaptainRadio(inputField) {
+            let row = inputField.closest("tr");
+            let radioButton = row.querySelector(".captain-radio");
+            radioButton.value = inputField.value.trim(); // Set the value of the radio button to the entered student ID
+        }
+
+    function removeRow(button) {
+            let row = button.closest("tr");
+            let tableBody = document.getElementById("participantFields");
+            let minParticipants = parseInt(document.getElementById("minParticipants").value, 10);
+            let currentCount = tableBody.getElementsByTagName("tr").length;
+
+            if (currentCount > minParticipants) {
+                row.remove();
+            } else {
+                alert(`You cannot remove participants below the minimum required (${minParticipants}).`);
+            }
+        }
+
+    function setCaptain(radio) {
+    let row = radio.closest("tr");
+    let studentInput = row.querySelector(".participant-input");
+
+    if (studentInput.value.trim() === "") {
+        alert("Captain must have a valid Student ID.");
+        radio.checked = false;
+        return;
+    }
+
+    document.querySelectorAll(".captain-radio").forEach(r => r.checked = false);
+    radio.checked = true;
+
+    document.getElementById("captain_id").value = radio.value; // Assign captain ID
+}
+
+
+function generateParticipantFields(min, max) {
             var container = document.getElementById("participantFields");
             container.innerHTML = "";
 
             for (let i = 0; i < min; i++) {
-                addParticipantField();
+                addNewParticipantRow();
             }
-
-            updateAddButtonState(min);
         }
-        function addParticipantField() {
+
+    function addParticipantField() {
     var container = document.getElementById("participantFields");
     var currentCount = container.getElementsByClassName("participant-entry").length;
     var maxParticipants = parseInt(document.getElementById("maxParticipants").value, 10);
@@ -330,39 +426,23 @@ $events = $query->fetchAll(PDO::FETCH_ASSOC);
     updateAddButtonState();
 }
 
-
-function updateCaptainRadio(inputField) {
-    var captainRadio = inputField.parentElement.parentElement.querySelector(".captain-radio");
-    captainRadio.value = inputField.value.trim(); // Update the radio button's value
+function setCaptain(radio, studentID) {
+    if (studentID.trim() !== "") {
+        document.getElementById("captain_id").value = studentID;
+    } else {
+        alert("Captain must have a valid Student ID.");
+        radio.checked = false;
+    }
 }
 
-function addNewParticipantRow() {
-    let tableBody = document.getElementById("participantFields");
-    let rowCount = tableBody.getElementsByTagName("tr").length;
-    let newRow = document.createElement("tr");
-
-    newRow.innerHTML = `
-        <td>
-            <input type="text" name="student_id[]" class="participant-input" placeholder="Enter Student ID" required oninput="updateCaptainRadio(this)">
-        </td>
-        <td>
-            <input type="radio" name="captain_id" class="captain-radio" value="" onclick="setCaptain(this)">
-        </td>
-        <td>
-            <button type="button" class="remove-btn" onclick="removeRow(this)">-</button>
-        </td>
-    `;
-
-    tableBody.appendChild(newRow);
-}
-
+// **Function to Check for Duplicate Student ID**
 function isDuplicateStudentID(studentID) {
     if (!studentID.trim()) return false; // Ignore empty values
 
     let inputs = document.querySelectorAll("input[name='student_id[]']");
     let count = Array.from(inputs).filter(input => input.value === studentID).length;
 
-    return count > 1; // **Return true if duplicate exists, but don't show an alert here**
+    return count > 1; // Return true if duplicate exists
 }
 
 function removeParticipantField(element) {
@@ -379,14 +459,122 @@ function removeParticipantField(element) {
     updateAddButtonState();
 }
 
-        function updateAddButtonState() {
-            var container = document.getElementById("participantFields");
-            var currentCount = container.getElementsByClassName("participant-entry").length;
-            var maxParticipants = parseInt(document.getElementById("maxParticipants").value, 10);
-            var addButton = document.querySelector(".add-btn");
 
-            addButton.disabled = currentCount >= maxParticipants;
+
+function updateAddButtonState() {
+    var container = document.getElementById("participantFields");
+    var currentCount = container.getElementsByClassName("participant-entry").length;
+    var maxParticipants = parseInt(document.getElementById("maxParticipants").value, 10);
+    var addButton = document.querySelector(".add-btn");
+
+    if (addButton) {
+        addButton.disabled = currentCount >= maxParticipants;
+    }
+}
+
+
+
+// Automatically fetch limits & update fields
+function fetchEventLimits() {
+    var eventId = document.getElementById("eventSelect").value;
+    if (eventId !== "") {
+        var xhr = new XMLHttpRequest();
+        xhr.open("POST", "fetch_event_limits.php", true);
+        xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+        xhr.onreadystatechange = function () {
+            if (xhr.readyState === 4 && xhr.status === 200) {
+                console.log("Response:", xhr.responseText); 
+                var response = JSON.parse(xhr.responseText);
+                if (response.success) {
+                    document.getElementById("minParticipants").value = response.minParticipants;
+                    document.getElementById("maxParticipants").value = response.maxParticipants;
+
+                    // Generate fields based on new limits
+                    generateParticipantFields(response.minParticipants, response.maxParticipants);
+                } else {
+                    console.error("Failed to fetch event limits.");
+                }
+            }
+        };
+        xhr.send("event_id=" + eventId);
+    }
+}
+
+document.addEventListener("DOMContentLoaded", function () {
+    let ulscID = <?php echo json_encode($ulsc_id); ?>.toLowerCase().trim();
+    let ulscDeptMatch = ulscID.match(/\d{2}([a-z]{2})\d{3}/);
+
+    if (!ulscDeptMatch) {
+        console.error("Invalid ULSC ID format!");
+        return;
+    }
+
+    let ulscDept = ulscDeptMatch[1].toLowerCase(); // Extract department code
+
+    let participantContainer = document.getElementById("participantFields");
+    let submitButton = document.getElementById("submit_button");
+    let errorMessage = document.getElementById("error_message");
+
+    if (!participantContainer) {
+        console.error("Participant fields container not found!");
+        return;
+    }
+
+    // Event listener for participant ID validation
+    participantContainer.addEventListener("input", function (event) {
+        if (event.target && event.target.classList.contains("participant_id")) {
+            validateParticipantID(event.target, ulscDept);
         }
+    });
+
+    function validateParticipantID(inputField, ulscDept) {
+    let studentID = inputField.value.toUpperCase().trim(); // Convert to uppercase for consistency
+    let studentMatch = studentID.match(/\d{2}([A-Z]{2,3})\d{3}/);
+
+    if (!studentMatch) {
+        inputField.style.border = "2px solid red";
+        inputField.setCustomValidity("Invalid Student ID format!");
+        inputField.reportValidity();
+    } else {
+        let studentDept = studentMatch[1]; // Extracted department code
+
+        if (studentDept !== ulscDept.toUpperCase()) {
+            inputField.style.border = "2px solid red";
+            inputField.setCustomValidity(
+                `This student ID (${studentID}) does not belong to your department (${ulscDept.toUpperCase()})!`
+            );
+            inputField.reportValidity();
+            setTimeout(() => alert(`This student ID (${studentID}) does not belong to your department (${ulscDept.toUpperCase()})!`), 100);
+            inputField.value = ""; // Clear invalid entry
+        } else {
+            inputField.style.border = "2px solid green";
+            inputField.setCustomValidity("");
+        }
+    }
+    validateAllParticipants();
+}
+
+
+    function validateAllParticipants() {
+        let participantInputs = document.getElementsByClassName("participant_id");
+        let hasError = false;
+
+        for (let input of participantInputs) {
+            if (input.style.border === "2px solid red" || input.value.trim() === "") {
+                hasError = true;
+                break;
+            }
+        }
+
+        if (hasError) {
+            errorMessage.innerText = "One or more participant IDs have an incorrect department!";
+            submitButton.disabled = true;
+        } else {
+            errorMessage.innerText = "";
+            submitButton.disabled = false;
+        }
+    }
+});
     </script>
 </body>
 

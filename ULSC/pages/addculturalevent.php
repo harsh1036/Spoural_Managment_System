@@ -236,7 +236,7 @@ $events = $query->fetchAll(PDO::FETCH_ASSOC);
     include_once('../includes/footer.php');
 ?>
         <script>
-            function openNav() {
+        function openNav() {
             document.getElementById("mySidenav").classList.add("open");
         }
         function closeNav() {
@@ -261,51 +261,39 @@ $events = $query->fetchAll(PDO::FETCH_ASSOC);
                     row.style.display = studentID.includes(filter) || eventName.includes(filter) ? "" : "none";
                 });
             });
-    
-            function confirmDelete(id) {
-                let confirmationBox = document.createElement("div");
-                confirmationBox.innerHTML = `
-                    <div class="confirm-box">
-                        <p>Are you sure you want to delete this participant?</p>
-                        <button onclick="window.location.href='addculturalevent.php?delete_id=${id}'">Yes</button>
-                        <button onclick="closeConfirmBox()">No</button>
-                    </div>
-                `;
-                confirmationBox.classList.add("confirm-overlay");
-                document.body.appendChild(confirmationBox);
-            }
-    
-            function closeConfirmBox() {
-                document.querySelector(".confirm-overlay").remove();
-            }
-    
         
     function showParticipantsForm() {
-        var eventSelect = document.getElementById("eventSelect");
-        var selectedOption = eventSelect.options[eventSelect.selectedIndex];
+            var eventSelect = document.getElementById("eventSelect");
+            var selectedOption = eventSelect.options[eventSelect.selectedIndex];
 
-        if (selectedOption.value) {
-            var min = parseInt(selectedOption.getAttribute("data-min"), 10);
-            var max = parseInt(selectedOption.getAttribute("data-max"), 10);
+            if (selectedOption.value) {
+                var min = parseInt(selectedOption.getAttribute("data-min"), 10);
+                var max = parseInt(selectedOption.getAttribute("data-max"), 10);
 
-            document.getElementById("minParticipants").value = min;
-            document.getElementById("maxParticipants").value = max;
-            document.getElementById("participantsContainer").style.display = "block";
+                document.getElementById("minParticipants").value = min;
+                document.getElementById("maxParticipants").value = max;
+                document.getElementById("participantsContainer").style.display = "block";
 
-            generateParticipantFields(min, max);
-        } else {
-            document.getElementById("participantsContainer").style.display = "none";
+                generateParticipantFields(min, max);
+            } else {
+                document.getElementById("participantsContainer").style.display = "none";
+            }
         }
-    }
 
-    function addNewParticipantRow() {
+        function addNewParticipantRow() {
     let tableBody = document.getElementById("participantFields");
     let rowCount = tableBody.getElementsByTagName("tr").length;
-    let newRow = document.createElement("tr");
+    let maxParticipants = parseInt(document.getElementById("maxParticipants").value, 10);
 
+    if (rowCount >= maxParticipants) {
+        alert(`You cannot add more than ${maxParticipants} participants.`);
+        return;
+    }
+
+    let newRow = document.createElement("tr");
     newRow.innerHTML = `
         <td>
-            <input type="text" name="student_id[]" class="participant-input" placeholder="Enter Student ID" required oninput="updateCaptainRadio(this)">
+            <input type="text" name="student_id[]" class="participant-input" placeholder="Enter Student ID" required oninput="updateCaptainRadio(this)" onchange="checkDuplicateID(this)">
         </td>
         <td>
             <input type="radio" name="captain_id" class="captain-radio" value="" onclick="setCaptain(this)">
@@ -317,15 +305,34 @@ $events = $query->fetchAll(PDO::FETCH_ASSOC);
 
     tableBody.appendChild(newRow);
 }
+        function checkDuplicateID(inputField) {
+            let studentID = inputField.value.trim();
+            if (isDuplicateStudentID(studentID)) {
+                alert("This student ID has already been added!");
+                inputField.value = "";
+            }
+        }
 
-function updateCaptainRadio(inputField) {
-    let row = inputField.closest("tr");
-    let radioButton = row.querySelector(".captain-radio");
-    radioButton.value = inputField.value.trim(); // Set the value of the radio button to the entered student ID
-}
-    function removeParticipantRow(button) {
-        button.closest("tr").remove();
-    }
+
+
+        function updateCaptainRadio(inputField) {
+            let row = inputField.closest("tr");
+            let radioButton = row.querySelector(".captain-radio");
+            radioButton.value = inputField.value.trim(); // Set the value of the radio button to the entered student ID
+        }
+
+    function removeRow(button) {
+            let row = button.closest("tr");
+            let tableBody = document.getElementById("participantFields");
+            let minParticipants = parseInt(document.getElementById("minParticipants").value, 10);
+            let currentCount = tableBody.getElementsByTagName("tr").length;
+
+            if (currentCount > minParticipants) {
+                row.remove();
+            } else {
+                alert(`You cannot remove participants below the minimum required (${minParticipants}).`);
+            }
+        }
 
     function setCaptain(radio) {
     let row = radio.closest("tr");
@@ -344,16 +351,14 @@ function updateCaptainRadio(inputField) {
 }
 
 
-    function generateParticipantFields(min, max) {
-        var container = document.getElementById("participantFields");
-        container.innerHTML = "";
+function generateParticipantFields(min, max) {
+            var container = document.getElementById("participantFields");
+            container.innerHTML = "";
 
-        for (let i = 0; i < min; i++) {
-            addParticipantField();
+            for (let i = 0; i < min; i++) {
+                addNewParticipantRow();
+            }
         }
-
-        updateAddButtonState(min);
-    }
 
     function addParticipantField() {
     var container = document.getElementById("participantFields");
@@ -437,8 +442,9 @@ function isDuplicateStudentID(studentID) {
     let inputs = document.querySelectorAll("input[name='student_id[]']");
     let count = Array.from(inputs).filter(input => input.value === studentID).length;
 
-    return count > 1; // **Return true if duplicate exists, but don't show an alert here**
+    return count > 1; // Return true if duplicate exists
 }
+
 
 
 function removeParticipantField(element) {
