@@ -101,30 +101,37 @@ if (!empty($selected_event_id)) {
             </form>
 
             
-
-        <?php if (!empty($participants)) { ?>
-            <section class="view-admin-details">
-                <h2>Participants List for <?= $selected_event_name ?></h2>
-                <table border="2px" class="table table-bordered table-striped small-table">
-                    <thead>
+            <?php if (!empty($selected_event_id)) { ?>
+    <?php if (!empty($participants)) { ?>
+        <section class="view-admin-details">
+            <h2>Participants List for <?= $selected_event_name ?></h2>
+            <table border="2px" class="table table-bordered table-striped small-table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Participant ID</th>
+                        <th>Department Name</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($participants as $participant) { ?>
                         <tr>
-                            <th>ID</th>
-                            <th>Participant ID</th>
-                            <th>Department Name</th>
+                            <td><?= $participant['id'] ?></td>
+                            <td><?= htmlspecialchars($participant['student_id']) ?></td>
+                            <td><?= htmlspecialchars($participant['dept_name']) ?></td>
                         </tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach ($participants as $participant) { ?>
-                            <tr>
-                                <td><?= $participant['id'] ?></td>
-                                <td><?= htmlspecialchars($participant['student_id']) ?></td>
-                                <td><?= htmlspecialchars($participant['dept_name']) ?></td>
-                            </tr>
-                        <?php } ?>
-                    </tbody>
-                </table>
-            </section>
-        <?php } ?>
+                    <?php } ?>
+                </tbody>
+            </table>
+        </section>
+    <?php } else { ?>
+        <section class="view-admin-details">
+            <h2>Participants List for <?= $selected_event_name ?></h2>
+            <p style="text-align: center; color: red; font-size: 16px;">No participants found for this event.</p>
+        </section>
+    <?php } ?>
+<?php } ?>
+
     </div>
 </div>
 </body>
