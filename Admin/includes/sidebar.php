@@ -62,7 +62,7 @@ $admin_username = $_SESSION['login'];
 
     <section class="home-section">
         <nav>
-            <div class="sidebar-button">
+            <div class="sidebar-button">                                    
                 <i class='bx bx-menu sidebarBtn'></i>
                 
             </div>
