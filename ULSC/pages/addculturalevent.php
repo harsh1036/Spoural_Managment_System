@@ -115,45 +115,26 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         echo "<script>alert('Students already registered: $existingList'); window.location.href='addculturalevent.php';</script>";
         exit;
     }
-
-    // Ensure only one captain per event
-    if ($captain_id) {
-        if (!in_array($captain_id, $student_ids)) {
-            echo "<script>alert('Captain must be from the selected participants.'); window.location.href='addsportsevent.php';</script>";
-            exit;
-        }
     
-        // Get the department ID of the new captain
-        $getDeptSql = "SELECT dept_id FROM student WHERE student_id = :captain_id";
-        $getDeptQuery = $dbh->prepare($getDeptSql);
-        $getDeptQuery->bindParam(':captain_id', $captain_id, PDO::PARAM_STR);
-        $getDeptQuery->execute();
-        $captainDept = $getDeptQuery->fetchColumn();
-    
-        if (!$captainDept) {
-            echo "<script>alert('Invalid captain selection.'); window.location.href='addsportsevent.php';</script>";
-            exit;
-        }
-    
-        // Check if a captain already exists for the same event and same department
-        $checkCaptainSql = "SELECT p.student_id 
-                            FROM participants p
-                            JOIN student s ON p.student_id = s.student_id
-                            WHERE p.event_id = :event_id 
-                            AND s.dept_id = :dept_id 
-                            AND p.is_captain = 1";
-        $checkCaptainQuery = $dbh->prepare($checkCaptainSql);
-        $checkCaptainQuery->bindParam(':event_id', $event_id, PDO::PARAM_INT);
-        $checkCaptainQuery->bindParam(':dept_id', $captainDept, PDO::PARAM_INT);
-        $checkCaptainQuery->execute();
-        $existingCaptain = $checkCaptainQuery->fetchColumn();
-    
-        if ($existingCaptain && $existingCaptain != $captain_id) {
-            echo "<script>alert('A captain from this department is already assigned for this event. Remove them first.'); window.location.href='addsportsevent.php';</script>";
-            exit;
-        }
+    // Ensure only one captain per event per department
+if ($captain_id) {
+    if (!in_array($captain_id, $student_ids)) {
+        echo "<script>alert('Captain must be from the selected participants.'); window.location.href='addsportsevent.php';</script>";
+        exit;
     }
-    
+
+    $checkCaptainSql = "SELECT student_id FROM participants WHERE event_id = :event_id AND dept_id = :dept_id AND is_captain = 1";
+    $checkCaptainQuery = $dbh->prepare($checkCaptainSql);
+    $checkCaptainQuery->bindParam(':event_id', $event_id, PDO::PARAM_INT);
+    $checkCaptainQuery->bindParam(':dept_id', $dept_id, PDO::PARAM_INT); // Add department filter
+    $checkCaptainQuery->execute();
+    $existingCaptain = $checkCaptainQuery->fetchColumn();
+
+    if ($existingCaptain && $existingCaptain != $captain_id) {
+        echo "<script>alert('A different captain is already assigned for your department. Remove them first.'); window.location.href='addsportsevent.php';</script>";
+        exit;
+    }
+}
 
     // Insert participants
     $sql = "INSERT INTO participants (event_id, student_id, dept_id, is_captain) VALUES (:event_id, :student_id, :dept_id, :is_captain)";
@@ -282,25 +263,24 @@ $events = $query->fetchAll(PDO::FETCH_ASSOC);
                 });
             });
         
-    function showParticipantsForm() {
-            var eventSelect = document.getElementById("eventSelect");
-            var selectedOption = eventSelect.options[eventSelect.selectedIndex];
+function showParticipantsForm() {
+    var eventSelect = document.getElementById("eventSelect");
+    var selectedOption = eventSelect.options[eventSelect.selectedIndex];
 
-            if (selectedOption.value) {
-                var min = parseInt(selectedOption.getAttribute("data-min"), 10);
-                var max = parseInt(selectedOption.getAttribute("data-max"), 10);
+    if (selectedOption.value) {
+        var min = parseInt(selectedOption.getAttribute("data-min"), 10);
+        var max = parseInt(selectedOption.getAttribute("data-max"), 10);
 
-                document.getElementById("minParticipants").value = min;
-                document.getElementById("maxParticipants").value = max;
-                document.getElementById("participantsContainer").style.display = "block";
+        document.getElementById("minParticipants").value = min;
+        document.getElementById("maxParticipants").value = max;
+        document.getElementById("participantsContainer").style.display = "block";
 
-                generateParticipantFields(min, max);
-            } else {
-                document.getElementById("participantsContainer").style.display = "none";
-            }
-        }
-
-        function addNewParticipantRow() {
+        generateParticipantFields(min, max);
+    } else {
+        document.getElementById("participantsContainer").style.display = "none";
+    }
+}
+function addNewParticipantRow() {
     let tableBody = document.getElementById("participantFields");
     let rowCount = tableBody.getElementsByTagName("tr").length;
     let maxParticipants = parseInt(document.getElementById("maxParticipants").value, 10);
@@ -324,37 +304,66 @@ $events = $query->fetchAll(PDO::FETCH_ASSOC);
     `;
 
     tableBody.appendChild(newRow);
+    
+    // Update the add button visibility
+    updateButtonVisibility();
 }
-        function checkDuplicateID(inputField) {
-            let studentID = inputField.value.trim();
-            if (isDuplicateStudentID(studentID)) {
-                alert("This student ID has already been added!");
-                inputField.value = "";
-            }
+
+function checkDuplicateID(inputField) {
+    let studentID = inputField.value.trim();
+    if (isDuplicateStudentID(studentID)) {
+        alert("This student ID has already been added!");
+        inputField.value = "";
+    }
+}
+
+function updateCaptainRadio(inputField) {
+    let row = inputField.closest("tr");
+    let radioButton = row.querySelector(".captain-radio");
+    radioButton.value = inputField.value.trim(); // Set the value of the radio button to the entered student ID
+    
+    // If only one participant, auto-select as captain
+    let tableBody = document.getElementById("participantFields");
+    if (tableBody.getElementsByTagName("tr").length === 1 && inputField.value.trim() !== "") {
+        radioButton.checked = true;
+        document.getElementById("captain_id").value = inputField.value.trim();
+    }
+}
+
+// Add this function to your existing script
+function checkAndAutoSelectCaptain() {
+    let tableBody = document.getElementById("participantFields");
+    let rows = tableBody.getElementsByTagName("tr");
+    let rowCount = rows.length;
+    
+    if (rowCount === 1) {
+        // If only one participant, auto-select as captain
+        let radioButton = rows[0].querySelector(".captain-radio");
+        let studentInput = rows[0].querySelector(".participant-input");
+        
+        // If there's already a value, set it as captain
+        if (studentInput.value.trim() !== "") {
+            radioButton.checked = true;
+            document.getElementById("captain_id").value = studentInput.value.trim();
         }
+    }
+}
 
+function removeRow(button) {
+    let row = button.closest("tr");
+    let tableBody = document.getElementById("participantFields");
+    let minParticipants = parseInt(document.getElementById("minParticipants").value, 10);
+    let currentCount = tableBody.getElementsByTagName("tr").length;
 
+    if (currentCount > minParticipants) {
+        row.remove();
+        updateButtonVisibility();
+    } else {
+        alert(`You cannot remove participants below the minimum required (${minParticipants}).`);
+    }
+}
 
-        function updateCaptainRadio(inputField) {
-            let row = inputField.closest("tr");
-            let radioButton = row.querySelector(".captain-radio");
-            radioButton.value = inputField.value.trim(); // Set the value of the radio button to the entered student ID
-        }
-
-    function removeRow(button) {
-            let row = button.closest("tr");
-            let tableBody = document.getElementById("participantFields");
-            let minParticipants = parseInt(document.getElementById("minParticipants").value, 10);
-            let currentCount = tableBody.getElementsByTagName("tr").length;
-
-            if (currentCount > minParticipants) {
-                row.remove();
-            } else {
-                alert(`You cannot remove participants below the minimum required (${minParticipants}).`);
-            }
-        }
-
-    function setCaptain(radio) {
+function setCaptain(radio) {
     let row = radio.closest("tr");
     let studentInput = row.querySelector(".participant-input");
 
@@ -372,13 +381,19 @@ $events = $query->fetchAll(PDO::FETCH_ASSOC);
 
 
 function generateParticipantFields(min, max) {
-            var container = document.getElementById("participantFields");
-            container.innerHTML = "";
+    var container = document.getElementById("participantFields");
+    container.innerHTML = "";
 
-            for (let i = 0; i < min; i++) {
-                addNewParticipantRow();
-            }
-        }
+    for (let i = 0; i < min; i++) {
+        addNewParticipantRow();
+    }
+    
+    // After generating initial fields, update button visibility
+    updateButtonVisibility();
+    
+    // Check and auto-select captain if there's only one participant
+    checkAndAutoSelectCaptain();
+}
 
     function addParticipantField() {
     var container = document.getElementById("participantFields");
@@ -465,7 +480,28 @@ function isDuplicateStudentID(studentID) {
     return count > 1; // Return true if duplicate exists
 }
 
-
+function updateButtonVisibility() {
+    let tableBody = document.getElementById("participantFields");
+    let rows = tableBody.getElementsByTagName("tr");
+    let rowCount = rows.length;
+    let minParticipants = parseInt(document.getElementById("minParticipants").value, 10);
+    let maxParticipants = parseInt(document.getElementById("maxParticipants").value, 10);
+    
+    // Update add button visibility
+    let addButton = document.querySelector(".add-btn");
+    if (addButton) {
+        addButton.style.display = rowCount >= maxParticipants ? "none" : "inline-block";
+    }
+    
+    // Update remove buttons visibility
+    for (let i = 0; i < rowCount; i++) {
+        let removeBtn = rows[i].querySelector(".remove-btn");
+        if (removeBtn) {
+            // Hide remove button for the first 'minParticipants' rows
+            removeBtn.style.display = (rowCount <= minParticipants || i < minParticipants) ? "none" : "inline-block";
+        }
+    }
+}
 
 function removeParticipantField(element) {
     var container = document.getElementById("participantFields");
@@ -576,18 +612,21 @@ document.addEventListener("DOMContentLoaded", function () {
     validateAllParticipants();
 }
 
+function validateAllParticipants() {
+    let participantInputs = document.getElementsByClassName("participant_id");
+    let hasError = false;
 
-    function validateAllParticipants() {
-        let participantInputs = document.getElementsByClassName("participant_id");
-        let hasError = false;
-
-        for (let input of participantInputs) {
-            if (input.style.border === "2px solid red" || input.value.trim() === "") {
-                hasError = true;
-                break;
-            }
+    for (let input of participantInputs) {
+        if (input.style.border === "2px solid red" || input.value.trim() === "") {
+            hasError = true;
+            break;
         }
+    }
 
+    let errorMessage = document.getElementById("error_message");
+    let submitButton = document.getElementById("submit_button");
+    
+    if (errorMessage && submitButton) {
         if (hasError) {
             errorMessage.innerText = "One or more participant IDs have an incorrect department!";
             submitButton.disabled = true;
@@ -596,6 +635,7 @@ document.addEventListener("DOMContentLoaded", function () {
             submitButton.disabled = false;
         }
     }
+}
 });
 
     </script>
