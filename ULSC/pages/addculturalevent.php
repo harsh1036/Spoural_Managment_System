@@ -280,6 +280,7 @@ function showParticipantsForm() {
         document.getElementById("participantsContainer").style.display = "none";
     }
 }
+
 function addNewParticipantRow() {
     let tableBody = document.getElementById("participantFields");
     let rowCount = tableBody.getElementsByTagName("tr").length;
@@ -307,6 +308,18 @@ function addNewParticipantRow() {
     
     // Update the add button visibility
     updateButtonVisibility();
+    
+    // If this is the first row being added, ensure it will be selected as captain once data is entered
+    if (rowCount === 0) {
+        let input = newRow.querySelector(".participant-input");
+        let radio = newRow.querySelector(".captain-radio");
+        input.addEventListener("input", function() {
+            if (this.value.trim() !== "") {
+                radio.checked = true;
+                document.getElementById("captain_id").value = this.value.trim();
+            }
+        });
+    }
 }
 
 function checkDuplicateID(inputField) {
@@ -322,9 +335,17 @@ function updateCaptainRadio(inputField) {
     let radioButton = row.querySelector(".captain-radio");
     radioButton.value = inputField.value.trim(); // Set the value of the radio button to the entered student ID
     
-    // If only one participant, auto-select as captain
     let tableBody = document.getElementById("participantFields");
-    if (tableBody.getElementsByTagName("tr").length === 1 && inputField.value.trim() !== "") {
+    let rows = tableBody.getElementsByTagName("tr");
+    
+    // If this is the first participant and no captain is selected yet, select as captain
+    if (row === rows[0] && !document.querySelector(".captain-radio:checked") && inputField.value.trim() !== "") {
+        radioButton.checked = true;
+        document.getElementById("captain_id").value = inputField.value.trim();
+    }
+    
+    // If only one participant, always auto-select as captain
+    if (rows.length === 1 && inputField.value.trim() !== "") {
         radioButton.checked = true;
         document.getElementById("captain_id").value = inputField.value.trim();
     }
@@ -334,17 +355,23 @@ function updateCaptainRadio(inputField) {
 function checkAndAutoSelectCaptain() {
     let tableBody = document.getElementById("participantFields");
     let rows = tableBody.getElementsByTagName("tr");
-    let rowCount = rows.length;
     
-    if (rowCount === 1) {
-        // If only one participant, auto-select as captain
+    if (rows.length > 0) {
+        // Always select the first participant as captain
         let radioButton = rows[0].querySelector(".captain-radio");
         let studentInput = rows[0].querySelector(".participant-input");
         
-        // If there's already a value, set it as captain
         if (studentInput.value.trim() !== "") {
             radioButton.checked = true;
             document.getElementById("captain_id").value = studentInput.value.trim();
+        } else {
+            // Set up an event listener to assign captain when ID is entered
+            studentInput.addEventListener("input", function() {
+                if (this.value.trim() !== "") {
+                    radioButton.checked = true;
+                    document.getElementById("captain_id").value = this.value.trim();
+                }
+            });
         }
     }
 }
@@ -391,7 +418,7 @@ function generateParticipantFields(min, max) {
     // After generating initial fields, update button visibility
     updateButtonVisibility();
     
-    // Check and auto-select captain if there's only one participant
+    // Always select first participant as captain
     checkAndAutoSelectCaptain();
 }
 
@@ -549,6 +576,9 @@ function fetchEventLimits() {
 
                     // Generate fields based on new limits
                     generateParticipantFields(response.minParticipants, response.maxParticipants);
+                    
+                    // Ensure first participant is captain
+                    setTimeout(checkAndAutoSelectCaptain, 100); // Small delay to ensure fields are rendered
                 } else {
                     console.error("Failed to fetch event limits.");
                 }
