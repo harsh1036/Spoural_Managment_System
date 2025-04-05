@@ -2,82 +2,94 @@
 session_start();
 include('../includes/config.php');
 
-// Fetch session data
-$admin_username = $_SESSION['login'];
+// Check if user is logged in
+if (!isset($_SESSION['login'])) {
+    header('location:../index.php');
+    exit();
+}
 
 // Initialize variables
-$student_id = $student_name = $contact = $department_id = "";
-
-// **FETCH DATA FOR EDITING**
-if (isset($_GET['edit_id'])) {
-    $id = $_GET['edit_id'];
-    $sql = "SELECT * FROM student WHERE student_id = :id";
-    $query = $dbh->prepare($sql);
-    $query->bindParam(':id', $id, PDO::PARAM_STR);
-    $query->execute();
-    $studentData = $query->fetch(PDO::FETCH_ASSOC);
-
-    if ($studentData) {
-        $student_id = $studentData['student_id'];
-        $student_name = $studentData['student_name'];
-        $contact = $studentData['contact'];
-        $department_id = $studentData['department_id'];
-    }
-}
-
-// **INSERT OR UPDATE STUDENT**
-if (isset($_POST['save_student'])) {
-    $student_id = $_POST['student_id'];
-    $student_name = $_POST['student_name'];
-    $contact = $_POST['contact'];
-    $department_id = $_POST['department_id'];
-
-    if (!empty($_POST['id'])) {
-        $id = $_POST['id'];
-        $sql = "UPDATE student SET student_name = :student_name, contact = :contact, department_id = :department_id WHERE student_id = :id";
-        $query = $dbh->prepare($sql);
-        $query->bindParam(':id', $id, PDO::PARAM_STR);
-    } else {
-        $sql = "INSERT INTO student (student_id, student_name, contact, department_id) VALUES (:student_id, :student_name, :contact, :department_id)";
-        $query = $dbh->prepare($sql);
-        $query->bindParam(':student_id', $student_id, PDO::PARAM_STR);
-    }
-
-    $query->bindParam(':student_name', $student_name, PDO::PARAM_STR);
-    $query->bindParam(':contact', $contact, PDO::PARAM_INT);
-    $query->bindParam(':department_id', $department_id, PDO::PARAM_INT);
-
-    if ($query->execute()) {
-        echo "<script> window.location.href='addstudent.php';</script>";
-    } else {
-        echo "<script>alert('Error adding/updating student!');</script>";
-    }
-}
-
-// **DELETE STUDENT**
-if (isset($_GET['delete_id'])) {
-    $id = $_GET['delete_id'];
-    $sql = "DELETE FROM student WHERE student_id = :id";
-    $query = $dbh->prepare($sql);
-    $query->bindParam(':id', $id, PDO::PARAM_STR);
-
-    if ($query->execute()) {
-        echo "<script>window.location.href='addstudent.php';</script>";
-    } else {
-        echo "<script>alert('Failed to delete student!');</script>";
-    }
-}
+$student_id = '';
+$student_name = '';
+$email = '';
+$phone = '';
+$department = '';
 
 // Fetch departments
-$query = $dbh->prepare("SELECT dept_id, dept_name FROM departments");
-$query->execute();
-$departments = $query->fetchAll(PDO::FETCH_ASSOC);
+try {
+    $query = $dbh->prepare("SELECT id, name FROM departments");
+    $query->execute();
+    $departments = $query->fetchAll(PDO::FETCH_ASSOC);
+} catch (PDOException $e) {
+    $departments = [];
+}
+
+// Check if editing a student
+if (isset($_GET['edit_id'])) {
+    $edit_id = $_GET['edit_id'];
+    try {
+        $stmt = $dbh->prepare("SELECT * FROM students WHERE id = :id");
+        $stmt->bindParam(':id', $edit_id, PDO::PARAM_INT);
+        $stmt->execute();
+        $student = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        if ($student) {
+            $student_id = $student['id'];
+            $student_name = $student['name'];
+            $email = $student['email'] ?? '';
+            $phone = $student['phone'] ?? '';
+            $department = $student['department'] ?? '';
+        }
+    } catch (PDOException $e) {
+        echo "<script>alert('Error fetching student data: " . $e->getMessage() . "');</script>";
+    }
+}
+
+// Handle form submission
+if (isset($_POST['submit'])) {
+    $name = $_POST['name'];
+    $email = $_POST['email'];
+    $phone = $_POST['phone'];
+    $department = $_POST['department'];
+    
+    try {
+        if (isset($_POST['id']) && !empty($_POST['id'])) {
+            // Update existing student
+            $id = $_POST['id'];
+            $sql = "UPDATE students SET name = :name, email = :email, phone = :phone, department = :department WHERE id = :id";
+            $stmt = $dbh->prepare($sql);
+            $stmt->bindParam(':id', $id, PDO::PARAM_INT);
+        } else {
+            // Insert new student
+            $sql = "INSERT INTO students (name, email, phone, department) VALUES (:name, :email, :phone, :department)";
+            $stmt = $dbh->prepare($sql);
+        }
+        
+        $stmt->bindParam(':name', $name, PDO::PARAM_STR);
+        $stmt->bindParam(':email', $email, PDO::PARAM_STR);
+        $stmt->bindParam(':phone', $phone, PDO::PARAM_STR);
+        $stmt->bindParam(':department', $department, PDO::PARAM_STR);
+        
+        if ($stmt->execute()) {
+            echo "<script>alert('Student saved successfully!'); window.location.href='addstudents.php';</script>";
+        } else {
+            echo "<script>alert('Error saving student!');</script>";
+        }
+    } catch (PDOException $e) {
+        echo "<script>alert('Database error: " . $e->getMessage() . "');</script>";
+    }
+}
 
 // Fetch all students
-$sql = "SELECT student.*, departments.dept_name FROM student JOIN departments ON student.department_id = departments.dept_id";
-$query = $dbh->prepare($sql);
-$query->execute();
-$students = $query->fetchAll(PDO::FETCH_ASSOC);
+try {
+    $sql = "SELECT * FROM students";
+    $query = $dbh->prepare($sql);
+    $query->execute();
+    $students = $query->fetchAll(PDO::FETCH_ASSOC);
+} catch (PDOException $e) {
+    $students = [];
+    echo "<script>alert('Error fetching students: " . $e->getMessage() . "');</script>";
+}
 ?>
 
 <!DOCTYPE html>
@@ -86,82 +98,102 @@ $students = $query->fetchAll(PDO::FETCH_ASSOC);
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Student Management</title>
-    <link rel="stylesheet" href="../assets/css/style.css">
+    <title>Add Single Student | Spoural Event System</title>
+    <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="../assets/css/style.css">
 </head>
 
 <body>
+    <?php include_once('../includes/sidebar.php'); ?>
+
     <div class="home-content">
-        <?php include_once('../includes/sidebar.php'); ?>
-
-        <div class="home-content">
-            <div class="home-page">
-                <div class="main-content">
-                    <section class="student-form">
-                        <h2><?= !empty($student_id) ? 'Edit Student' : 'New Student' ?></h2>
-                        <form method="post" action="addstudent.php" class="student-input-form">
-                            <input type="hidden" name="id" value="<?= htmlspecialchars($student_id) ?>">
-
-                            <label>Student ID:</label>
-                            <input type="text" name="student_id" class="input-field" value="<?= htmlspecialchars($student_id) ?>" required><br><br>
-
-                            <label>Student Name:</label>
-                            <input type="text" name="student_name" class="input-field" value="<?= htmlspecialchars($student_name) ?>" required><br><br>
-
-                            <label>Department:</label>
-                            <select name="department_id" class="input-field" required>
+        <div class="container-fluid px-4">
+            <div class="form-container">
+                <h2 class="form-title"><?= !empty($student_id) ? 'Edit Student' : 'Add New Student' ?></h2>
+                
+                <form method="post" action="">
+                    <?php if (!empty($student_id)): ?>
+                        <input type="hidden" name="id" value="<?= htmlspecialchars($student_id) ?>">
+                    <?php endif; ?>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Student Name</label>
+                            <input type="text" name="name" class="form-control" value="<?= htmlspecialchars($student_name) ?>" required>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="form-label">Email</label>
+                            <input type="email" name="email" class="form-control" value="<?= htmlspecialchars($email) ?>">
+                        </div>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Phone Number</label>
+                            <input type="text" name="phone" class="form-control" value="<?= htmlspecialchars($phone) ?>">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="form-label">Department</label>
+                            <select name="department" class="form-select">
                                 <option value="">Select Department</option>
                                 <?php foreach ($departments as $dept): ?>
-                                    <option value="<?= $dept['dept_id'] ?>" <?= isset($department_id) && $department_id == $dept['dept_id'] ? 'selected' : '' ?>>
-                                        <?= htmlspecialchars($dept['dept_name']) ?>
+                                    <option value="<?= htmlspecialchars($dept['name']) ?>" <?= ($department == $dept['name']) ? 'selected' : '' ?>>
+                                        <?= htmlspecialchars($dept['name']) ?>
                                     </option>
                                 <?php endforeach; ?>
-                            </select><br><br>
-
-                            <label>Contact Number:</label>
-                            <input type="number" name="contact" class="input-field" value="<?= htmlspecialchars($contact) ?>" required><br><br>
-
-                            <button type="submit" name="save_student" class="submit-button"><?= !empty($student_id) ? 'Update' : 'Submit' ?></button>
-                        </form>
-                    </section>
-
-                    <section class="student-table">
-                        <h2>View Students</h2>
-                        <table class="styled-table">
-                            <thead>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <button type="submit" name="submit" class="btn btn-primary">
+                            <?= !empty($student_id) ? 'Update Student' : 'Add Student' ?>
+                        </button>
+                    </div>
+                </form>
+            </div>
+            
+            <div class="table-responsive mt-4">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Name</th>
+                            <th>Email</th>
+                            <th>Phone</th>
+                            <th>Department</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php if (count($students) > 0): ?>
+                            <?php foreach ($students as $student): ?>
                                 <tr>
-                                    <th>Student ID</th>
-                                    <th>Student Name</th>
-                                    <th>Department</th>
-                                    <th>Contact</th>
-                                    <th>Edit</th>
-                                    <th>Remove</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php foreach ($students as $student) { ?>
-                                <tr>
-                                    <td><?= htmlspecialchars($student['student_id']) ?></td>
-                                    <td><?= htmlspecialchars($student['student_name']) ?></td>
-                                    <td><?= htmlspecialchars($student['dept_name']) ?></td>
-                                    <td><?= htmlspecialchars($student['contact']) ?></td>
+                                    <td><?= htmlspecialchars($student['id']) ?></td>
+                                    <td><?= htmlspecialchars($student['name']) ?></td>
+                                    <td><?= htmlspecialchars($student['email'] ?? '') ?></td>
+                                    <td><?= htmlspecialchars($student['phone'] ?? '') ?></td>
+                                    <td><?= htmlspecialchars($student['department'] ?? '') ?></td>
                                     <td>
-                                        <a href="addstudent.php?edit_id=<?= $student['student_id'] ?>">
-                                            <img src="../assets/images/edit.jpg" alt="Edit" width="20" height="20">
+                                        <a href="?edit_id=<?= $student['id'] ?>" class="btn btn-sm btn-primary">
+                                            <i class='bx bx-edit'></i> Edit
+                                        </a>
+                                        <a href="?delete_id=<?= $student['id'] ?>" class="btn btn-sm btn-danger" onclick="return confirm('Are you sure you want to delete this student?')">
+                                            <i class='bx bx-trash'></i> Delete
                                         </a>
                                     </td>
-                                    <td>
-                                        <a href="addstudent.php?delete_id=<?= $student['student_id'] ?>" onclick="return confirm('Are you sure?')">
-                                            <img src="../assets/images/delete.jpg" alt="Delete" width="20" height="20">
-                                        </a>
-                                    </td>
                                 </tr>
-                                <?php } ?>
-                            </tbody>
-                        </table>
-                    </section>
-                </div>
+                            <?php endforeach; ?>
+                        <?php else: ?>
+                            <tr>
+                                <td colspan="6" class="text-center">No students found</td>
+                            </tr>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
             </div>
         </div>
     </div>
