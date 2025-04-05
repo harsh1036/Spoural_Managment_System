@@ -3,11 +3,11 @@ session_start();
 include('../includes/config.php');
 
 if (!isset($_SESSION['ulsc_id'])) {
-    header("Location: ulsc_login.php");
+    header("Location: ../index.php");
     exit;
 }
 
-// // **Fetch ULSC Member's Department ID**
+// Fetch ULSC Member's Department ID
 $ulsc_id = $_SESSION['ulsc_id'];
 // Fetch ULSC department details
 $sql = "SELECT u.dept_id, d.dept_name, u.ulsc_name 
@@ -20,7 +20,9 @@ $query->execute();
 $ulsc = $query->fetch(PDO::FETCH_ASSOC);
 
 if (!$ulsc) {
-    die("<script>alert('ULSC member not found. Please check your session.'); window.location.href='ulsc_dashboard.php';</script>");
+    session_destroy();
+    header("Location: ../index.php?error=invalid_session");
+    exit();
 }
 
 // Store ULSC's department ID safely
@@ -29,8 +31,6 @@ $ulsc_name = htmlspecialchars($ulsc['ulsc_name']);
 $dept_name = htmlspecialchars($ulsc['dept_name']);
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    $captain_id = $_POST['captain_id'] ?? null;
-    error_log("Captain ID: " . print_r($captain_id, true));
     $event_id = $_POST['event'];
     $student_ids = $_POST['student_id'];
     $min_participants = (int)$_POST['minParticipants'];
@@ -118,24 +118,24 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     }
 
     // Ensure only one captain per event per department
-if ($captain_id) {
-    if (!in_array($captain_id, $student_ids)) {
-        echo "<script>alert('Captain must be from the selected participants.'); window.location.href='addsportsevent.php';</script>";
-        exit;
-    }
+    if ($captain_id) {
+        if (!in_array($captain_id, $student_ids)) {
+            echo "<script>alert('Captain must be from the selected participants.'); window.location.href='addsportsevent.php';</script>";
+            exit;
+        }
 
-    $checkCaptainSql = "SELECT student_id FROM participants WHERE event_id = :event_id AND dept_id = :dept_id AND is_captain = 1";
-    $checkCaptainQuery = $dbh->prepare($checkCaptainSql);
-    $checkCaptainQuery->bindParam(':event_id', $event_id, PDO::PARAM_INT);
-    $checkCaptainQuery->bindParam(':dept_id', $dept_id, PDO::PARAM_INT); // Add department filter
-    $checkCaptainQuery->execute();
-    $existingCaptain = $checkCaptainQuery->fetchColumn();
+        $checkCaptainSql = "SELECT student_id FROM participants WHERE event_id = :event_id AND dept_id = :dept_id AND is_captain = 1";
+        $checkCaptainQuery = $dbh->prepare($checkCaptainSql);
+        $checkCaptainQuery->bindParam(':event_id', $event_id, PDO::PARAM_INT);
+        $checkCaptainQuery->bindParam(':dept_id', $dept_id, PDO::PARAM_INT); // Add department filter
+        $checkCaptainQuery->execute();
+        $existingCaptain = $checkCaptainQuery->fetchColumn();
 
-    if ($existingCaptain && $existingCaptain != $captain_id) {
-        echo "<script>alert('A different captain is already assigned for your department. Remove them first.'); window.location.href='addsportsevent.php';</script>";
-        exit;
+        if ($existingCaptain && $existingCaptain != $captain_id) {
+            echo "<script>alert('A different captain is already assigned for your department. Remove them first.'); window.location.href='addsportsevent.php';</script>";
+            exit;
+        }
     }
-}
 
     // Insert participants
     $sql = "INSERT INTO participants (event_id, student_id, dept_id, is_captain) VALUES (:event_id, :student_id, :dept_id, :is_captain)";
@@ -177,59 +177,74 @@ $events = $query->fetchAll(PDO::FETCH_ASSOC);
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Spoural Management System</title>
+    <title>Sports Event Entry - Spoural Management System</title>
+    <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
     <link rel="stylesheet" href="../assets/css/style.css">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    
 </head>
 
 <body>
+    <?php include_once('../includes/sidebar.php'); ?>
+        
     <div class="home-content">
-        <?php include_once('../includes/sidebar.php'); ?>
-        <div class="home-content">
-            <div class="home-page">
-                <section class="new-admin">
-                    <section>
-                        <!-- Add Participant Form -->
-                        <form action="addsportsevent.php" method="POST">
-                            <label for="eventSelect"><strong>Select Sports Event:</strong></label>
-                            <select id="eventSelect" name="event" onchange="showParticipantsForm()" required>
-                                <option value="">Select Event...</option>
-                                <?php foreach ($events as $event) : ?>
-                                    <?php if ($event['event_type'] === 'Sports') : ?>
-                                        <option value="<?= $event['id']; ?>" data-min="<?= $event['min_participants']; ?>" data-max="<?= $event['max_participants']; ?>">
-                                            <?= htmlspecialchars($event['event_name']); ?>
-                                        </option>
-                                    <?php endif; ?>
-                                <?php endforeach; ?>
-                            </select>
+        <div class="participant-entry-container">
+            <div class="content-card">
+                <div class="content-header">
+                    <h2><i class='bx bx-football'></i> Sports Event Entry</h2>
+                    <div>
+                        <span class="dept-badge"><?php echo htmlspecialchars($dept_name); ?></span>
+                    </div>
+                </div>
+                
+                <form action="addsportsevent.php" method="POST" class="participant-form">
+                    <div class="form-group">
+                        <label for="eventSelect" class="form-label">Select Sports Event:</label>
+                        <select id="eventSelect" name="event" class="form-select" onchange="showParticipantsForm()" required>
+                            <option value="">Select Event...</option>
+                            <?php foreach ($events as $event) : ?>
+                                <?php if ($event['event_type'] === 'Sports') : ?>
+                                    <option value="<?= $event['id']; ?>" data-min="<?= $event['min_participants']; ?>" data-max="<?= $event['max_participants']; ?>">
+                                        <?= htmlspecialchars($event['event_name']); ?>
+                                    </option>
+                                <?php endif; ?>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
 
-                            <div id="participantsContainer" style="display:none; margin-top: 15px;">
-                                <input type="hidden" id="minParticipants" name="minParticipants" value="">
-                                <input type="hidden" id="maxParticipants" name="maxParticipants" value="">
-                                <input type="hidden" id="captain_id" name="captain_id">
-
-                                <!-- Table Structure for Participant List -->
-                                <table class="participant-table">
-                                    <thead>
-                                        <tr>
-                                            <th>Participant ID</th>
-                                            <th>Captain</th>
-                                            <th>Action</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="participantFields">
-                                        <!-- Participant rows will be added here -->
-                                    </tbody>
-                                </table>
-
-                                <!-- Add Participant Button -->
-                                <button type="button" class="add-btn" onclick="addNewParticipantRow()">+</button>
+                    <div id="participantsContainer" style="display:none; margin-top: 25px;">
+                        <input type="hidden" id="minParticipants" name="minParticipants" value="">
+                        <input type="hidden" id="maxParticipants" name="maxParticipants" value="">
+                        <input type="hidden" id="captain_id" name="captain_id">
+                        
+                        <div class="participants-info">
+                            <div class="alert alert-info">
+                                <i class='bx bx-info-circle'></i> Please enter <span id="requiredCount"></span> participants. Select one participant as team captain.
                             </div>
-                            <button type="submit" class="submit-btn">Submit</button>
-                        </form>
-                    </section>
-                </section>
+                        </div>
+
+                        <!-- Table Structure for Participant List -->
+                        <table class="participants-table">
+                            <thead>
+                                <tr>
+                                    <th>Participant ID</th>
+                                    <th width="100">Captain</th>
+                                    <th width="80">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="participantFields">
+                                <!-- Participant rows will be added here -->
+                            </tbody>
+                        </table>
+
+                        <!-- Add Participant Button -->
+                        <div class="add-participant-btn" onclick="addNewParticipantRow()">
+                            <i class='bx bx-plus-circle'></i> Add Participant
+                        </div>
+                    </div>
+                    
+                    <div class="submit-container">
+                        <button type="submit" class="btn btn-primary">Submit Entry</button>
+                    </div>
+                </form>
             </div>
         </div>
     </div>
@@ -264,59 +279,73 @@ $events = $query->fetchAll(PDO::FETCH_ASSOC);
             });
         
 function showParticipantsForm() {
-    var eventSelect = document.getElementById("eventSelect");
-    var selectedOption = eventSelect.options[eventSelect.selectedIndex];
-
-    if (selectedOption.value) {
-        var min = parseInt(selectedOption.getAttribute("data-min"), 10);
-        var max = parseInt(selectedOption.getAttribute("data-max"), 10);
-
-        document.getElementById("minParticipants").value = min;
-        document.getElementById("maxParticipants").value = max;
-        document.getElementById("participantsContainer").style.display = "block";
-
-        generateParticipantFields(min, max);
+    let select = document.getElementById("eventSelect");
+    let participantsContainer = document.getElementById("participantsContainer");
+    
+    if (select.value) {
+        let selectedOption = select.options[select.selectedIndex];
+        let minParticipants = selectedOption.getAttribute("data-min");
+        let maxParticipants = selectedOption.getAttribute("data-max");
+        
+        document.getElementById("minParticipants").value = minParticipants;
+        document.getElementById("maxParticipants").value = maxParticipants;
+        document.getElementById("requiredCount").textContent = `${minParticipants}-${maxParticipants}`;
+        
+        participantsContainer.style.display = "block";
+        
+        // Clear existing rows
+        let tableBody = document.getElementById("participantFields");
+        tableBody.innerHTML = "";
+        
+        // Add initial row
+        addNewParticipantRow();
     } else {
-        document.getElementById("participantsContainer").style.display = "none";
+        participantsContainer.style.display = "none";
     }
 }
 
 function addNewParticipantRow() {
     let tableBody = document.getElementById("participantFields");
-    let rowCount = tableBody.getElementsByTagName("tr").length;
-    let maxParticipants = parseInt(document.getElementById("maxParticipants").value, 10);
+    let rowCount = tableBody.children.length;
+    let maxParticipants = parseInt(document.getElementById("maxParticipants").value);
 
     if (rowCount >= maxParticipants) {
-        alert(`You cannot add more than ${maxParticipants} participants.`);
+        alert(`Maximum ${maxParticipants} participants allowed.`);
         return;
     }
 
     let newRow = document.createElement("tr");
     newRow.innerHTML = `
         <td>
-            <input type="text" name="student_id[]" class="participant-input" placeholder="Enter Student ID" required oninput="updateCaptainRadio(this)" onchange="checkDuplicateID(this)">
+            <input type="text" name="student_id[]" class="student-id-input" placeholder="Enter Student ID" required oninput="updateCaptainRadio(this)" onchange="checkDuplicateID(this)">
         </td>
         <td>
-            <input type="radio" name="captain_id" class="captain-radio" value="" onclick="setCaptain(this)">
+            <label class="custom-radio">
+                <input type="radio" name="captain_id" value="" onclick="setCaptain(this)">
+                <span class="radio-checkmark"></span>
+                <span class="radio-label">Captain</span>
+            </label>
         </td>
         <td>
-            <button type="button" class="remove-btn" onclick="removeRow(this)">-</button>
+            <button type="button" class="btn btn-danger btn-round" onclick="removeRow(this)">
+                <i class='bx bx-trash'></i>
+            </button>
         </td>
     `;
 
     tableBody.appendChild(newRow);
-    
+
     // Update the add button visibility
     updateButtonVisibility();
-    
+
     // If this is the first row being added, ensure it will be selected as captain once data is entered
     if (rowCount === 0) {
-        let input = newRow.querySelector(".participant-input");
-        let radio = newRow.querySelector(".captain-radio");
+        let input = newRow.querySelector(".student-id-input");
+        let radio = newRow.querySelector("input[type='radio']");
         input.addEventListener("input", function() {
             if (this.value.trim() !== "") {
                 radio.checked = true;
-                document.getElementById("captain_id").value = this.value.trim();
+                setCaptain(radio);
             }
         });
     }
@@ -359,7 +388,7 @@ function checkAndAutoSelectCaptain() {
     if (rows.length > 0) {
         // Always select the first participant as captain
         let radioButton = rows[0].querySelector(".captain-radio");
-        let studentInput = rows[0].querySelector(".participant-input");
+        let studentInput = rows[0].querySelector(".student-id-input");
         
         if (studentInput.value.trim() !== "") {
             radioButton.checked = true;
@@ -392,7 +421,7 @@ function removeRow(button) {
 
 function setCaptain(radio) {
     let row = radio.closest("tr");
-    let studentInput = row.querySelector(".participant-input");
+    let studentInput = row.querySelector(".student-id-input");
 
     if (studentInput.value.trim() === "") {
         alert("Captain must have a valid Student ID.");
@@ -405,7 +434,6 @@ function setCaptain(radio) {
 
     document.getElementById("captain_id").value = radio.value; // Assign captain ID
 }
-
 
 function generateParticipantFields(min, max) {
     var container = document.getElementById("participantFields");
@@ -422,91 +450,6 @@ function generateParticipantFields(min, max) {
     checkAndAutoSelectCaptain();
 }
 
-    function addParticipantField() {
-    var container = document.getElementById("participantFields");
-    var currentCount = container.getElementsByClassName("participant-entry").length;
-    var maxParticipants = parseInt(document.getElementById("maxParticipants").value, 10);
-
-    if (currentCount >= maxParticipants) {
-        alert(`You cannot add more than ${maxParticipants} participants.`);
-        return;
-    }
-
-    var newDiv = document.createElement("div");
-    newDiv.classList.add("participant-entry");
-    newDiv.style.display = "flex";  // Align in row format
-
-    var newInput = document.createElement("input");
-    newInput.type = "text";
-    newInput.name = "student_id[]";
-    newInput.placeholder = "Enter Student ID";
-    newInput.classList.add("participant-input");
-    newInput.required = true;
-
-    newInput.addEventListener("change", function () {
-        if (isDuplicateStudentID(newInput.value)) {
-            alert("This student ID has already been added!");
-            newInput.value = "";
-        } else {
-            updateCaptainRadio(newInput);
-        }
-    });
-
-    var captainContainer = document.createElement("div");
-    captainContainer.style.textAlign = "center"; 
-    var captainRadio = document.createElement("input");
-    captainRadio.type = "radio";
-    captainRadio.name = "captain";
-    captainRadio.classList.add("captain-radio");
-
-    captainRadio.onclick = function () {
-        if (newInput.value.trim() !== "") {
-            let existingCaptain = document.querySelector(".captain-radio:checked");
-            if (existingCaptain && existingCaptain !== captainRadio) {
-                existingCaptain.checked = false;
-            }
-            document.getElementById("captain_id").value = newInput.value;
-        } else {
-            alert("Captain must have a valid Student ID.");
-            captainRadio.checked = false;
-        }
-    };
-    captainContainer.appendChild(captainRadio);
-
-    var removeButton = document.createElement("button");
-    removeButton.innerHTML = "-";
-    removeButton.classList.add("remove-btn");
-    removeButton.onclick = function () {
-        removeParticipantField(newDiv);
-    };
-
-    newDiv.appendChild(newInput);
-    newDiv.appendChild(captainContainer);
-    newDiv.appendChild(removeButton);
-    container.appendChild(newDiv);
-
-    updateAddButtonState();
-}
-
-function setCaptain(radio, studentID) {
-    if (studentID.trim() !== "") {
-        document.getElementById("captain_id").value = studentID;
-    } else {
-        alert("Captain must have a valid Student ID.");
-        radio.checked = false;
-    }
-}
-
-// **Function to Check for Duplicate Student ID**
-function isDuplicateStudentID(studentID) {
-    if (!studentID.trim()) return false; // Ignore empty values
-
-    let inputs = document.querySelectorAll("input[name='student_id[]']");
-    let count = Array.from(inputs).filter(input => input.value === studentID).length;
-
-    return count > 1; // Return true if duplicate exists
-}
-
 function updateButtonVisibility() {
     let tableBody = document.getElementById("participantFields");
     let rows = tableBody.getElementsByTagName("tr");
@@ -515,14 +458,14 @@ function updateButtonVisibility() {
     let maxParticipants = parseInt(document.getElementById("maxParticipants").value, 10);
     
     // Update add button visibility
-    let addButton = document.querySelector(".add-btn");
+    let addButton = document.querySelector(".add-participant-btn");
     if (addButton) {
         addButton.style.display = rowCount >= maxParticipants ? "none" : "inline-block";
     }
     
     // Update remove buttons visibility
     for (let i = 0; i < rowCount; i++) {
-        let removeBtn = rows[i].querySelector(".remove-btn");
+        let removeBtn = rows[i].querySelector(".btn-danger");
         if (removeBtn) {
             // Hide remove button for the first 'minParticipants' rows
             removeBtn.style.display = (rowCount <= minParticipants || i < minParticipants) ? "none" : "inline-block";
@@ -544,20 +487,16 @@ function removeParticipantField(element) {
     updateAddButtonState();
 }
 
-
-
 function updateAddButtonState() {
     var container = document.getElementById("participantFields");
     var currentCount = container.getElementsByClassName("participant-entry").length;
     var maxParticipants = parseInt(document.getElementById("maxParticipants").value, 10);
-    var addButton = document.querySelector(".add-btn");
+    var addButton = document.querySelector(".add-participant-btn");
 
     if (addButton) {
         addButton.disabled = currentCount >= maxParticipants;
     }
 }
-
-
 
 // Automatically fetch limits & update fields
 function fetchEventLimits() {

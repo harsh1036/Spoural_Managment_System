@@ -1,104 +1,128 @@
 <?php
-require_once(__DIR__ . '/../../tcpdf/tcpdf.php');
+session_start();
 include('../includes/config.php');
+require('../fpdf/fpdf.php'); // Make sure to have FPDF library in this path
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $selected_event_id = isset($_POST['selected_event_pdf']) ? intval($_POST['selected_event_pdf']) : null;
-    $download_all = isset($_POST['download_all_data']);
-
-    // Create new PDF instance
-    $pdf = new TCPDF();
-    $pdf->SetCreator(PDF_CREATOR);
-    $pdf->SetAuthor('ULSC');
-    $pdf->SetTitle('Cultural Event Participants');
-
-    // Remove default header/footer
-    $pdf->setPrintHeader(false);
-    $pdf->setPrintFooter(false);
-
-    // Add a page
-    $pdf->AddPage();
-
-    // Set logo path
-    $logoPath = realpath('../assets/images/charusat.png');
-    if ($logoPath && file_exists($logoPath)) {
-        $pdf->Image($logoPath, 10, 10, 30);
-    }
-
-    $pdf->SetFont('helvetica', 'B', 14);
-    $pdf->Cell(0, 10, 'Charotar University of Science and Technology', 0, 1, 'C');
-    $pdf->Ln(20);
-
-    if ($download_all) {
-        $eventQuery = "SELECT id, event_name FROM events WHERE event_type = 'Cultural'";
-        $eventResult = $dbh->prepare($eventQuery);
-        $eventResult->execute();
-        $events = $eventResult->fetchAll(PDO::FETCH_ASSOC);
-
-        foreach ($events as $event) {
-            generateEventTable($pdf, $dbh, $event['id'], $event['event_name']);
-        }
-    } elseif ($selected_event_id) {
-        $eventQuery = "SELECT event_name FROM events WHERE id = :event_id AND event_type = 'Cultural'";
-        $stmt = $dbh->prepare($eventQuery);
-        $stmt->bindParam(':event_id', $selected_event_id, PDO::PARAM_INT);
-        $stmt->execute();
-        $event = $stmt->fetch(PDO::FETCH_ASSOC);
-
-        if ($event) {
-            generateEventTable($pdf, $dbh, $selected_event_id, $event['event_name']);
-        } else {
-            die("Invalid event selection.");
-        }
-    } else {
-        die("Invalid request.");
-    }
-
-    $pdf->Output('cultural_event_participants.pdf', 'D');
+// Check if user is logged in
+if (!isset($_SESSION['ulsc_id'])) {
+    header("Location: ../index.php");
     exit();
 }
 
-function generateEventTable($pdf, $dbh, $eventId, $eventName) {
-    $participantQuery = "SELECT DISTINCT p.id, p.student_id, d.dept_name, u.ulsc_name 
-                         FROM participants p 
-                         JOIN departments d ON p.dept_id = d.dept_id 
-                         JOIN ulsc u ON d.dept_id = u.dept_id 
-                         WHERE p.event_id = :event_id";
-    $stmt = $dbh->prepare($participantQuery);
-    $stmt->bindParam(':event_id', $eventId, PDO::PARAM_INT);
-    $stmt->execute();
-    $participants = $stmt->fetchAll(PDO::FETCH_ASSOC);
+// Check if event ID is provided
+if (!isset($_POST['selected_event_pdf']) || empty($_POST['selected_event_pdf'])) {
+    echo "No event selected";
+    exit();
+}
 
-    $table = '<table border="1" cellpadding="5">';
-    $table .= '<tr><td colspan="3" style="text-align:center;"><b>Event Name: ' . htmlspecialchars($eventName) . '</b></td></tr>';
+$event_id = intval($_POST['selected_event_pdf']);
 
-    if ($participants) {
-        $groupedData = [];
-        foreach ($participants as $row) {
-            $groupedData[$row['dept_name']][] = $row;
-        }
+// Get ULSC department
+$ulsc_id = $_SESSION['ulsc_id'];
+$query = $dbh->prepare("SELECT u.*, d.dept_name FROM ulsc u JOIN departments d ON u.dept_id = d.dept_id WHERE u.ulsc_id = :ulsc_id");
+$query->bindParam(':ulsc_id', $ulsc_id, PDO::PARAM_STR);
+$query->execute();
+$ulsc = $query->fetch(PDO::FETCH_ASSOC);
 
-        foreach ($groupedData as $deptName => $students) {
-            $ulscName = $students[0]['ulsc_name'];
-            $table .= '<tr><td colspan="2"><b>Department:</b> ' . htmlspecialchars($deptName) . '</td>
-                      <td><b>ULSC Name:</b> ' . htmlspecialchars($ulscName) . '</td></tr>';
-            $table .= '<tr><th>ID</th><th>Student ID</th><th></th></tr>';
-            
-            $uniqueStudents = [];
-            foreach ($students as $student) {
-                if (!in_array($student['student_id'], $uniqueStudents)) {
-                    $uniqueStudents[] = $student['student_id'];
-                    $table .= '<tr><td>' . htmlspecialchars($student['id']) . '</td>
-                              <td>' . htmlspecialchars($student['student_id']) . '</td>
-                              <td></td></tr>';
-                }
-            }
-        }
-    } else {
-        $table .= '<tr><td colspan="3" style="text-align:center;">No registered participants '  .htmlspecialchars($eventName) . '</td></tr>';
+if (!$ulsc) {
+    echo "ULSC member not found";
+    exit();
+}
+
+// Get event details
+$query = $dbh->prepare("SELECT * FROM events WHERE id = :event_id");
+$query->bindParam(':event_id', $event_id, PDO::PARAM_INT);
+$query->execute();
+$event = $query->fetch(PDO::FETCH_ASSOC);
+
+if (!$event) {
+    echo "Event not found";
+    exit();
+}
+
+// Get participants
+$query = $dbh->prepare("
+    SELECT p.id, p.student_id, s.student_name, d.dept_name, p.is_captain 
+    FROM participants p 
+    JOIN departments d ON p.dept_id = d.dept_id 
+    LEFT JOIN student s ON p.student_id = s.student_id
+    WHERE p.event_id = :event_id
+    ORDER BY p.is_captain DESC, s.student_name
+");
+$query->bindParam(':event_id', $event_id, PDO::PARAM_INT);
+$query->execute();
+$participants = $query->fetchAll(PDO::FETCH_ASSOC);
+
+// Create PDF
+class PDF extends FPDF
+{
+    // Page header
+    function Header()
+    {
+        // Logo
+        //$this->Image('logo.png', 10, 6, 30);
+        // Arial bold 15
+        $this->SetFont('Arial', 'B', 15);
+        // Move to the right
+        $this->Cell(80);
+        // Title
+        $this->Cell(30, 10, 'Spoural Event System', 0, 0, 'C');
+        // Line break
+        $this->Ln(20);
     }
 
-    $table .= '</table>';
-    $pdf->writeHTML($table, true, false, true, false, '');
-    $pdf->Ln(10);
+    // Page footer
+    function Footer()
+    {
+        // Position at 1.5 cm from bottom
+        $this->SetY(-15);
+        // Arial italic 8
+        $this->SetFont('Arial', 'I', 8);
+        // Page number
+        $this->Cell(0, 10, 'Page ' . $this->PageNo() . '/{nb}', 0, 0, 'C');
+    }
 }
+
+// Initialize PDF
+$pdf = new PDF();
+$pdf->AliasNbPages();
+$pdf->AddPage();
+$pdf->SetFont('Arial', 'B', 16);
+
+// Event Title
+$pdf->Cell(0, 10, 'Cultural Event: ' . $event['event_name'], 0, 1);
+$pdf->SetFont('Arial', '', 12);
+$pdf->Cell(0, 10, 'Department: ' . $ulsc['dept_name'], 0, 1);
+$pdf->Cell(0, 10, 'Min Participants: ' . $event['min_participants'] . ' | Max Participants: ' . $event['max_participants'], 0, 1);
+$pdf->Ln(5);
+
+// Table Header
+$pdf->SetFillColor(41, 66, 166);
+$pdf->SetTextColor(255);
+$pdf->SetFont('Arial', 'B', 12);
+$pdf->Cell(15, 10, '#', 1, 0, 'C', true);
+$pdf->Cell(40, 10, 'Student ID', 1, 0, 'C', true);
+$pdf->Cell(60, 10, 'Student Name', 1, 0, 'C', true);
+$pdf->Cell(50, 10, 'Department', 1, 0, 'C', true);
+$pdf->Cell(25, 10, 'Role', 1, 1, 'C', true);
+
+// Table Content
+$pdf->SetFillColor(224, 235, 255);
+$pdf->SetTextColor(0);
+$pdf->SetFont('Arial', '', 12);
+$fill = false;
+$count = 1;
+
+foreach ($participants as $participant) {
+    $pdf->Cell(15, 10, $count++, 1, 0, 'C', $fill);
+    $pdf->Cell(40, 10, $participant['student_id'], 1, 0, 'L', $fill);
+    $pdf->Cell(60, 10, $participant['student_name'] ?? 'N/A', 1, 0, 'L', $fill);
+    $pdf->Cell(50, 10, $participant['dept_name'], 1, 0, 'L', $fill);
+    $pdf->Cell(25, 10, $participant['is_captain'] ? 'Captain' : 'Participant', 1, 1, 'C', $fill);
+    $fill = !$fill;
+}
+
+// Output the PDF
+$filename = 'Cultural_Event_' . $event['event_name'] . '_' . date('Y-m-d') . '.pdf';
+$pdf->Output('D', $filename);
+?>

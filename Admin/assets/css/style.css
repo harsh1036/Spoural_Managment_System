@@ -2,11 +2,11 @@
 @import url("https://fonts.googleapis.com/css2?family=Poppins:wght@200;300;400;500;600;700&display=swap");
 
 :root {
-    --primary-color: #4361ee;
-    --primary-dark: #0a2558;
-    --primary-light: #4895ef;
-    --secondary-color: #3f37c9;
-    --accent-color: #4cc9f0;
+    --primary-color: #2942a6;
+    --primary-dark: #1a307c;
+    --primary-light: #4563d8;
+    --secondary-color: #3358dd;
+    --accent-color: #0090e7;
     --success-color: #4ade80;
     --warning-color: #fb8500;
     --danger-color: #ef476f;
@@ -801,7 +801,7 @@ nav .logo:hover img {
 
 .input-field:focus {
     border-color: var(--primary-color);
-    box-shadow: 0 0 0 2px rgba(67, 97, 238, 0.1);
+    box-shadow: 0 0 0 2px rgba(41, 66, 166, 0.1);
     outline: none;
 }
 
@@ -886,7 +886,7 @@ nav .logo:hover img {
 }
 
 .styled-table tr:hover {
-    background-color: rgba(67, 97, 238, 0.05);
+    background-color: rgba(41, 66, 166, 0.05);
 }
 
 .edit-icon, .remove-icon {
@@ -968,7 +968,7 @@ nav .logo:hover img {
 }
 
 .dropdown-menu a:hover {
-    background: rgba(67, 97, 238, 0.05);
+    background: rgba(41, 66, 166, 0.05);
     color: var(--primary-color);
 }
 
@@ -1067,7 +1067,7 @@ nav .logo:hover img {
 
 .form-control:focus {
     border-color: var(--primary-color);
-    box-shadow: 0 0 0 3px rgba(67, 97, 238, 0.1);
+    box-shadow: 0 0 0 2px rgba(41, 66, 166, 0.1);
     outline: none;
 }
 
@@ -1092,7 +1092,7 @@ nav .logo:hover img {
 
 .form-select:focus {
     border-color: var(--primary-color);
-    box-shadow: 0 0 0 3px rgba(67, 97, 238, 0.1);
+    box-shadow: 0 0 0 2px rgba(41, 66, 166, 0.1);
     outline: none;
 }
 
@@ -1280,7 +1280,7 @@ nav .logo:hover img {
     align-items: center;
     justify-content: center;
     padding: 30px;
-    background-color: rgba(67, 97, 238, 0.05);
+    background-color: rgba(41, 66, 166, 0.05);
     border: 2px dashed var(--primary-light);
     border-radius: var(--border-radius);
     transition: all var(--transition-speed);
@@ -1288,7 +1288,7 @@ nav .logo:hover img {
 }
 
 .file-upload-label:hover {
-    background-color: rgba(67, 97, 238, 0.1);
+    background-color: rgba(41, 66, 166, 0.1);
 }
 
 .file-upload-icon {
@@ -1350,7 +1350,7 @@ nav .logo:hover img {
 }
 
 .table tbody tr:hover {
-    background-color: rgba(67, 97, 238, 0.05);
+    background-color: rgba(41, 66, 166, 0.05);
     transform: scale(1.01);
 }
 
@@ -1376,7 +1376,7 @@ nav .logo:hover img {
 .loader {
     width: 50px;
     height: 50px;
-    border: 5px solid rgba(67, 97, 238, 0.2);
+    border: 5px solid rgba(41, 66, 166, 0.2);
     border-radius: 50%;
     border-top-color: var(--primary-color);
     animation: spin 1s ease-in-out infinite;
@@ -1465,7 +1465,7 @@ nav .logo:hover img {
 }
 
 .profile-menu-item:hover {
-    background: rgba(99, 102, 241, 0.05);
+    background: rgba(41, 66, 166, 0.05);
     color: var(--primary-color);
 }
 
@@ -1487,7 +1487,7 @@ nav .logo:hover img {
 }
 
 .profile-toggle:hover {
-    background-color: rgba(99, 102, 241, 0.05);
+    background-color: rgba(41, 66, 166, 0.05);
     box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
 }
 
@@ -1513,4 +1513,30 @@ nav .logo:hover img {
 
 .profile-toggle.active i {
     transform: rotate(180deg);
+}
+
+.welcome-banner {
+    background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+    color: white;
+    padding: 30px;
+    border-radius: var(--border-radius);
+    margin-bottom: 30px;
+    box-shadow: var(--box-shadow);
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+}
+
+.stat-badge {
+    background: rgba(41, 66, 166, 0.1);
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 12px;
+    color: var(--primary-color);
+    margin-top: 5px;
+    display: inline-block;
+}
+
+.event-item:hover {
+    background: rgba(41, 66, 166, 0.05);
 }

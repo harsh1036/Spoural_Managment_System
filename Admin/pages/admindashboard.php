@@ -158,7 +158,7 @@ try {
         }
         
         .stat-card .stat-badge {
-            background: rgba(67, 97, 238, 0.1);
+            background: rgba(41, 66, 166, 0.1);
             padding: 4px 10px;
             border-radius: 20px;
             font-size: 12px;
@@ -197,7 +197,7 @@ try {
         }
         
         .event-item:hover {
-            background: rgba(67, 97, 238, 0.05);
+            background: rgba(41, 66, 166, 0.05);
             transform: translateX(10px);
             padding-left: 10px;
         }

@@ -39,9 +39,9 @@ if (isset($_POST['login'])) {
     <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
     <style>
         :root {
-            --primary-color: #6366f1;
-            --primary-light: #818cf8;
-            --primary-dark: #4f46e5;
+            --primary-color: #2942a6;
+            --primary-light: #4563d8;
+            --primary-dark: #1a307c;
             --text-primary: #1e293b;
             --text-secondary: #64748b;
             --bg-primary: #ffffff;
@@ -50,13 +50,13 @@ if (isset($_POST['login'])) {
         
         * {
             margin: 0;
-        padding: 0;
-        box-sizing: border-box;
+            padding: 0;
+            box-sizing: border-box;
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-    }
-
-    body {
-            background-color: #6366f1;
+        }
+        
+        body {
+            background-color: #2942a6;
             min-height: 100vh;
             display: flex;
             justify-content: center;
@@ -64,8 +64,8 @@ if (isset($_POST['login'])) {
         }
         
         .login-container {
-        display: flex;
-        width: 100%;
+            display: flex;
+            width: 100%;
             max-width: 1280px;
             height: 100vh;
             background-color: #ffffff;
@@ -109,8 +109,8 @@ if (isset($_POST['login'])) {
         .login-right {
             flex: 1;
             display: flex;
-        flex-direction: column;
-        justify-content: center;
+            flex-direction: column;
+            justify-content: center;
             padding: 60px;
         }
         
@@ -181,7 +181,7 @@ if (isset($_POST['login'])) {
         }
         
         .form-control {
-        width: 100%;
+            width: 100%;
             padding: 16px 16px 16px 44px;
             border: 1px solid #e2e8f0;
             border-radius: 8px;
@@ -192,31 +192,31 @@ if (isset($_POST['login'])) {
         .form-control:focus {
             outline: none;
             border-color: var(--primary-color);
-            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+            box-shadow: 0 0 0 3px rgba(41, 66, 166, 0.2);
         }
         
         .forgot-link {
-        display: block;
-        text-align: right;
+            display: block;
+            text-align: right;
             color: var(--primary-color);
             text-decoration: none;
             margin-bottom: 24px;
             font-size: 0.9rem;
-    }
-
+        }
+        
         .btn-login {
             display: flex;
-        align-items: center;
+            align-items: center;
             justify-content: center;
-        width: 100%;
+            width: 100%;
             padding: 14px;
             background-color: var(--primary-color);
             color: white;
             border: none;
             border-radius: 8px;
             font-size: 1rem;
-        font-weight: 600;
-        cursor: pointer;
+            font-weight: 600;
+            cursor: pointer;
             transition: background-color var(--transition-speed);
         }
         
@@ -232,9 +232,9 @@ if (isset($_POST['login'])) {
             margin-top: 40px;
             color: var(--text-secondary);
             font-size: 0.9rem;
-        text-align: center;
-    }
-
+            text-align: center;
+        }
+        
         .error-alert {
             background-color: #fef2f2;
             color: #b91c1c;
@@ -267,7 +267,7 @@ if (isset($_POST['login'])) {
             .login-form {
                 max-width: 100%;
             }
-    }
+        }
     </style>
 </head>
 
