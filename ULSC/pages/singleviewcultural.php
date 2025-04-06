@@ -3,13 +3,34 @@ session_start();
 include('../includes/config.php');
 
 // Redirect if not logged in
-if (!isset($_SESSION['login'])) {
-    header("Location: login.php");
+if (!isset($_SESSION['ulsc_id'])) {
+    header("Location: ../index.php");
     exit();
 }
 
-// Fetch session data
-$admin_username = $_SESSION['login'];
+// Fetch ULSC Member's Department ID
+$ulsc_id = $_SESSION['ulsc_id'];
+
+// Fetch ULSC department details
+$sql = "SELECT u.dept_id, d.dept_name, u.ulsc_name 
+        FROM ulsc u 
+        JOIN departments d ON u.dept_id = d.dept_id 
+        WHERE u.ulsc_id = :ulsc_id";
+$query = $dbh->prepare($sql);
+$query->bindParam(':ulsc_id', $ulsc_id, PDO::PARAM_STR);
+$query->execute();
+$ulsc_user = $query->fetch(PDO::FETCH_ASSOC);
+
+if (!$ulsc_user) {
+    session_destroy();
+    header("Location: ../index.php?error=invalid_session");
+    exit();
+}
+
+// Store ULSC's department ID safely
+$dept_id = $ulsc_user['dept_id'];
+$ulsc_name = htmlspecialchars($ulsc_user['ulsc_name']);
+$dept_name = htmlspecialchars($ulsc_user['dept_name']);
 
 // Fetch all cultural events once
 $query = $dbh->prepare("SELECT * FROM events WHERE event_type = 'Cultural' ORDER BY event_name");
@@ -23,13 +44,16 @@ $selected_event_name = "";
 
 if (!empty($selected_event_id)) {
     // Fetch participants with student_id and department name
+    // Filter by ULSC's department
     $query = $dbh->prepare("
         SELECT p.id, p.student_id, d.dept_name 
         FROM participants p 
         JOIN departments d ON p.dept_id = d.dept_id 
         WHERE p.event_id = :event_id
+        AND p.dept_id = :dept_id
     ");
     $query->bindParam(':event_id', $selected_event_id, PDO::PARAM_INT);
+    $query->bindParam(':dept_id', $dept_id, PDO::PARAM_INT);
     $query->execute();
     $participants = $query->fetchAll(PDO::FETCH_ASSOC);
 
