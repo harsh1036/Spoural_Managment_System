@@ -12,7 +12,73 @@ if (!isset($_SESSION['login'])) {
 $admin_username = $_SESSION['login'];
 
 // Initialize variables
-$event_id = $event_name = $event_type = $min_participants = $max_participants = "";
+$dept_id = $dept_name = "";
+
+// Handle delete operation
+if (isset($_GET['delete_id'])) {
+    try {
+        $delete_id = $_GET['delete_id'];
+        $sql = "DELETE FROM departments WHERE dept_id = :id";
+        $stmt = $dbh->prepare($sql);
+        $stmt->bindParam(':id', $delete_id, PDO::PARAM_INT);
+        
+        if ($stmt->execute()) {
+            echo "<script>alert('Department deleted successfully!'); window.location.href='adddepartment.php';</script>";
+        } else {
+            echo "<script>alert('Error deleting department!');</script>";
+        }
+    } catch (PDOException $e) {
+        echo "<script>alert('Database error: " . $e->getMessage() . "');</script>";
+    }
+}
+
+// Handle edit operation - fetch department data
+if (isset($_GET['edit_id'])) {
+    try {
+        $edit_id = $_GET['edit_id'];
+        $sql = "SELECT * FROM departments WHERE dept_id = :id";
+        $stmt = $dbh->prepare($sql);
+        $stmt->bindParam(':id', $edit_id, PDO::PARAM_INT);
+        $stmt->execute();
+        
+        if ($department = $stmt->fetch(PDO::FETCH_ASSOC)) {
+            $dept_id = $department['dept_id'];
+            $dept_name = $department['dept_name'];
+        }
+    } catch (PDOException $e) {
+        echo "<script>alert('Database error: " . $e->getMessage() . "');</script>";
+    }
+}
+
+// Handle form submission
+if (isset($_POST['save_department'])) {
+    $dept_name = $_POST['dept_name'];
+    $dept_id = $_POST['dept_id'];
+
+    try {
+        if (!empty($dept_id)) {
+            // Update existing department
+            $sql = "UPDATE departments SET dept_name = :name WHERE dept_id = :id";
+            $stmt = $dbh->prepare($sql);
+            $stmt->bindParam(':id', $dept_id, PDO::PARAM_INT);
+        } else {
+            // Insert new department
+            $sql = "INSERT INTO departments (dept_name) VALUES (:name)";
+            $stmt = $dbh->prepare($sql);
+        }
+
+        $stmt->bindParam(':name', $dept_name, PDO::PARAM_STR);
+
+        if ($stmt->execute()) {
+            echo "<script>alert('Department saved successfully!'); window.location.href='adddepartment.php';</script>";
+        } else {
+            echo "<script>alert('Error saving department!');</script>";
+        }
+    } catch (PDOException $e) {
+        echo "<script>alert('Database error: " . $e->getMessage() . "');</script>";
+    }
+}
+
 ?>
 
 <!DOCTYPE html>
@@ -91,13 +157,13 @@ $event_id = $event_name = $event_type = $min_participants = $max_participants = 
                                     <td><?= htmlspecialchars($dept['dept_id']) ?></td>
                                     <td><?= htmlspecialchars($dept['dept_name']) ?></td>
                                     <td>
-                                        <a href="adddepartment.php?edit_id=<?= $dept['dept_id'] ?>">
-                                            <img src="../assets/images/edit.jpg" alt="Edit" width="20" height="20">
+                                        <a href="#" class="edit-dept btn btn-sm btn-primary" data-id="<?= $dept['dept_id'] ?>" data-name="<?= htmlspecialchars($dept['dept_name']) ?>">
+                                            <i class='bx bx-edit'></i> Edit
                                         </a>
                                     </td>
                                     <td>
-                                        <a href="adddepartment.php?delete_id=<?= $dept['dept_id'] ?>" onclick="return confirm('Are you sure?')">
-                                            <img src="../assets/images/delete.jpg" alt="Delete" width="20" height="20">
+                                        <a href="adddepartment.php?delete_id=<?= $dept['dept_id'] ?>" class="btn btn-sm btn-danger" onclick="return confirm('Are you sure?')">
+                                            <i class='bx bx-trash'></i> Delete
                                         </a>
                                     </td>
                                 </tr>
@@ -178,6 +244,27 @@ $event_id = $event_name = $event_type = $min_participants = $max_participants = 
         document.getElementById('multipleDeptBtn').addEventListener('click', function(e) {
             e.preventDefault();
             toggleContent('multipleDeptContent');
+        });
+
+        document.querySelectorAll('.edit-dept').forEach(button => {
+            button.addEventListener('click', function(e) {
+                e.preventDefault();
+                
+                const id = this.getAttribute('data-id');
+                const name = this.getAttribute('data-name');
+
+                document.querySelector('input[name="dept_id"]').value = id;
+                document.querySelector('input[name="dept_name"]').value = name;
+
+                document.querySelector('.department-form h3').textContent = 'Edit Department';
+
+                document.querySelector('button[name="save_department"]').textContent = 'Update';
+
+                document.getElementById('singleDeptContent').style.display = 'block';
+                document.getElementById('multipleDeptContent').style.display = 'none';
+
+                document.querySelector('.department-form').scrollIntoView({ behavior: 'smooth' });
+            });
         });
     </script>
 </body>

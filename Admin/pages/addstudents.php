@@ -14,23 +14,70 @@ $admin_username = $_SESSION['login'];
 // Initialize variables
 $student_id = $student_name = $contact = $dept_id = "";
 
+// Handle delete operation
+if (isset($_GET['delete_id'])) {
+    try {
+        $delete_id = $_GET['delete_id'];
+        $sql = "DELETE FROM student WHERE student_id = :id";
+        $stmt = $dbh->prepare($sql);
+        $stmt->bindParam(':id', $delete_id, PDO::PARAM_INT);
+        
+        if ($stmt->execute()) {
+            echo "<script>alert('Student deleted successfully!'); window.location.href='addstudents.php';</script>";
+        } else {
+            echo "<script>alert('Error deleting student!');</script>";
+        }
+    } catch (PDOException $e) {
+        echo "<script>alert('Database error: " . $e->getMessage() . "');</script>";
+    }
+}
+
+// Handle edit operation - fetch student data
+if (isset($_GET['edit_id'])) {
+    try {
+        $edit_id = $_GET['edit_id'];
+        $sql = "SELECT * FROM student WHERE student_id = :id";
+        $stmt = $dbh->prepare($sql);
+        $stmt->bindParam(':id', $edit_id, PDO::PARAM_INT);
+        $stmt->execute();
+        
+        if ($student = $stmt->fetch(PDO::FETCH_ASSOC)) {
+            $student_id = $student['student_id'];
+            $student_name = $student['student_name'];
+            $contact = $student['contact'];
+            $dept_id = $student['dept_id'];
+        }
+    } catch (PDOException $e) {
+        echo "<script>alert('Database error: " . $e->getMessage() . "');</script>";
+    }
+}
+
 // Handle form submission
 if (isset($_POST['submit'])) {
+    $student_id = $_POST['student_id'];
     $name = $_POST['name'];
     $contact = $_POST['contact'];
     $dept_id = $_POST['department'];
 
     try {
-        if (isset($_POST['id']) && !empty($_POST['id'])) {
+        // Check if student ID already exists
+        $check_sql = "SELECT student_id FROM student WHERE student_id = :student_id";
+        $check_stmt = $dbh->prepare($check_sql);
+        $check_stmt->bindParam(':student_id', $student_id, PDO::PARAM_STR);
+        $check_stmt->execute();
+        
+        $exists = $check_stmt->fetch(PDO::FETCH_ASSOC);
+        
+        if ($exists) {
             // Update existing student
-            $id = $_POST['id'];
-            $sql = "UPDATE student SET student_name = :name, contact = :contact, dept_id = :dept_id WHERE student_id = :id";
+            $sql = "UPDATE student SET student_name = :name, contact = :contact, dept_id = :dept_id WHERE student_id = :student_id";
             $stmt = $dbh->prepare($sql);
-            $stmt->bindParam(':id', $id, PDO::PARAM_INT);
+            $stmt->bindParam(':student_id', $student_id, PDO::PARAM_STR);
         } else {
             // Insert new student
-            $sql = "INSERT INTO student (student_name, contact, dept_id) VALUES (:name, :contact, :dept_id)";
+            $sql = "INSERT INTO student (student_id, student_name, contact, dept_id) VALUES (:student_id, :name, :contact, :dept_id)";
             $stmt = $dbh->prepare($sql);
+            $stmt->bindParam(':student_id', $student_id, PDO::PARAM_STR);
         }
 
         $stmt->bindParam(':name', $name, PDO::PARAM_STR);
@@ -132,6 +179,11 @@ if (isset($_POST['import'])) {
 
                             <div class="form-row">
                                 <div class="form-group">
+                                    <label class="form-label">Student ID</label>
+                                    <input type="text" name="student_id" class="form-control" value="<?= isset($student_id) ? htmlspecialchars($student_id) : '' ?>" required>
+                                </div>
+
+                                <div class="form-group">
                                     <label class="form-label">Student Name</label>
                                     <input type="text" name="name" class="form-control" value="<?= isset($student_name) ? htmlspecialchars($student_name) : '' ?>" required>
                                 </div>
@@ -182,9 +234,10 @@ if (isset($_POST['import'])) {
                             </thead>
                             <tbody>
                                 <?php 
-                                $sql = "SELECT s.student_id, s.student_name, s.contact, d.dept_name
+                                $sql = "SELECT s.student_id, s.student_name, s.contact, s.dept_id, d.dept_name 
                                         FROM student s
-                                        JOIN departments d ON s.dept_id = d.dept_id";
+                                        JOIN departments d ON s.dept_id = d.dept_id
+                                        ORDER BY s.student_id DESC";
                                 $query = $dbh->prepare($sql);
                                 $query->execute();
                                 $students = $query->fetchAll(PDO::FETCH_ASSOC);
@@ -197,10 +250,17 @@ if (isset($_POST['import'])) {
                                         <td><?= htmlspecialchars($student['contact'] ?? '') ?></td>
                                         <td><?= htmlspecialchars($student['dept_name'] ?? '') ?></td>
                                         <td>
-                                            <a href="addstudents.php?edit_id=<?= $student['student_id'] ?>" class="btn btn-sm btn-primary">
+                                            <button type="button" 
+                                                    class="edit-student btn btn-sm btn-primary"
+                                                    data-id="<?= htmlspecialchars($student['student_id']) ?>"
+                                                    data-name="<?= htmlspecialchars($student['student_name']) ?>"
+                                                    data-contact="<?= htmlspecialchars($student['contact'] ?? '') ?>"
+                                                    data-dept="<?= htmlspecialchars($student['dept_id']) ?>">
                                                 <i class='bx bx-edit'></i> Edit
-                                            </a>
-                                            <a href="addstudents.php?delete_id=<?= $student['student_id'] ?>" class="btn btn-sm btn-danger" onclick="return confirm('Are you sure you want to delete this student?')">
+                                            </button>
+                                            <a href="addstudents.php?delete_id=<?= $student['student_id'] ?>" 
+                                               class="btn btn-sm btn-danger" 
+                                               onclick="return confirm('Are you sure you want to delete this student?')">
                                                 <i class='bx bx-trash'></i> Delete
                                             </a>
                                         </td>
@@ -275,6 +335,36 @@ if (isset($_POST['import'])) {
         document.getElementById('multipleStudentBtn').addEventListener('click', function(e) {
             e.preventDefault();
             toggleContent('multipleStudentContent');
+        });
+
+        // Handle edit button clicks
+        document.addEventListener('DOMContentLoaded', function() {
+            document.querySelectorAll('.edit-student').forEach(button => {
+                button.addEventListener('click', function() {
+                    // Get the data from the clicked button
+                    const id = this.getAttribute('data-id');
+                    const name = this.getAttribute('data-name');
+                    const contact = this.getAttribute('data-contact');
+                    const dept = this.getAttribute('data-dept');
+
+                    // Populate the form fields
+                    document.querySelector('input[name="student_id"]').value = id;
+                    document.querySelector('input[name="name"]').value = name;
+                    document.querySelector('input[name="contact"]').value = contact || '';
+                    document.querySelector('select[name="department"]').value = dept;
+
+                    // Update form title and button
+                    document.querySelector('.form-container h3').textContent = 'Edit Student';
+                    document.querySelector('button[name="submit"]').textContent = 'Update Student';
+
+                    // Show the form section
+                    document.getElementById('singleStudentContent').style.display = 'block';
+                    document.getElementById('multipleStudentContent').style.display = 'none';
+
+                    // Scroll to form
+                    document.querySelector('.form-container').scrollIntoView({ behavior: 'smooth' });
+                });
+            });
         });
     </script>
 </body>

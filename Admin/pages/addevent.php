@@ -10,6 +10,83 @@ if (!isset($_SESSION['login'])) {
 
 // Fetch session data
 $admin_username = $_SESSION['login'];
+
+// Initialize variables
+$event_id = $event_name = $event_type = $min_participants = $max_participants = "";
+
+// Handle delete operation
+if (isset($_GET['delete_id'])) {
+    try {
+        $delete_id = $_GET['delete_id'];
+        $sql = "DELETE FROM events WHERE id = :id";
+        $stmt = $dbh->prepare($sql);
+        $stmt->bindParam(':id', $delete_id, PDO::PARAM_INT);
+        
+        if ($stmt->execute()) {
+            echo "<script>alert('Event deleted successfully!'); window.location.href='addevent.php';</script>";
+        } else {
+            echo "<script>alert('Error deleting event!');</script>";
+        }
+    } catch (PDOException $e) {
+        echo "<script>alert('Database error: " . $e->getMessage() . "');</script>";
+    }
+}
+
+// Handle edit operation - fetch event data
+if (isset($_GET['edit_id'])) {
+    try {
+        $edit_id = $_GET['edit_id'];
+        $sql = "SELECT * FROM events WHERE id = :id";
+        $stmt = $dbh->prepare($sql);
+        $stmt->bindParam(':id', $edit_id, PDO::PARAM_INT);
+        $stmt->execute();
+        
+        if ($event = $stmt->fetch(PDO::FETCH_ASSOC)) {
+            $event_id = $event['id'];
+            $event_name = $event['event_name'];
+            $event_type = $event['event_type'];
+            $min_participants = $event['min_participants'];
+            $max_participants = $event['max_participants'];
+        }
+    } catch (PDOException $e) {
+        echo "<script>alert('Database error: " . $e->getMessage() . "');</script>";
+    }
+}
+
+// Handle form submission
+if (isset($_POST['save_event'])) {
+    $event_name = $_POST['event_name'];
+    $event_type = $_POST['event_type'];
+    $min_participants = $_POST['min_participants'];
+    $max_participants = $_POST['max_participants'];
+    $event_id = $_POST['event_id'];
+
+    try {
+        if (!empty($event_id)) {
+            // Update existing event
+            $sql = "UPDATE events SET event_name = :name, event_type = :type, min_participants = :min, max_participants = :max WHERE id = :id";
+            $stmt = $dbh->prepare($sql);
+            $stmt->bindParam(':id', $event_id, PDO::PARAM_INT);
+        } else {
+            // Insert new event
+            $sql = "INSERT INTO events (event_name, event_type, min_participants, max_participants) VALUES (:name, :type, :min, :max)";
+            $stmt = $dbh->prepare($sql);
+        }
+
+        $stmt->bindParam(':name', $event_name, PDO::PARAM_STR);
+        $stmt->bindParam(':type', $event_type, PDO::PARAM_STR);
+        $stmt->bindParam(':min', $min_participants, PDO::PARAM_INT);
+        $stmt->bindParam(':max', $max_participants, PDO::PARAM_INT);
+
+        if ($stmt->execute()) {
+            echo "<script>alert('Event saved successfully!'); window.location.href='addevent.php';</script>";
+        } else {
+            echo "<script>alert('Error saving event!');</script>";
+        }
+    } catch (PDOException $e) {
+        echo "<script>alert('Database error: " . $e->getMessage() . "');</script>";
+    }
+}
 ?>
 
 <!DOCTYPE html>
@@ -105,13 +182,18 @@ $admin_username = $_SESSION['login'];
                                     <td><?= htmlspecialchars($event['min_participants']) ?></td>
                                     <td><?= htmlspecialchars($event['max_participants']) ?></td>
                                     <td>
-                                        <a href="addevent.php?edit_id=<?= $event['id'] ?>">
-                                            <img src="../assets/images/edit.jpg" alt="Edit" width="20" height="20">
+                                        <a href="#" class="edit-event btn btn-sm btn-primary" 
+                                           data-id="<?= $event['id'] ?>"
+                                           data-name="<?= htmlspecialchars($event['event_name']) ?>"
+                                           data-type="<?= htmlspecialchars($event['event_type']) ?>"
+                                           data-min="<?= htmlspecialchars($event['min_participants']) ?>"
+                                           data-max="<?= htmlspecialchars($event['max_participants']) ?>">
+                                            <i class='bx bx-edit'></i> Edit
                                         </a>
                                     </td>
                                     <td>
-                                        <a href="addevent.php?delete_id=<?= $event['id'] ?>" onclick="return confirm('Are you sure?')">
-                                            <img src="../assets/images/delete.jpg" alt="Delete" width="20" height="20">
+                                        <a href="addevent.php?delete_id=<?= $event['id'] ?>" class="btn btn-sm btn-danger" onclick="return confirm('Are you sure?')">
+                                            <i class='bx bx-trash'></i> Delete
                                         </a>
                                     </td>
                                 </tr>
@@ -192,6 +274,45 @@ $admin_username = $_SESSION['login'];
         document.getElementById('multipleEventBtn').addEventListener('click', function(e) {
             e.preventDefault();
             toggleContent('multipleEventContent');
+        });
+
+        // Handle edit button clicks
+        document.querySelectorAll('.edit-event').forEach(button => {
+            button.addEventListener('click', function(e) {
+                e.preventDefault();
+                
+                // Get the data from the clicked button
+                const id = this.getAttribute('data-id');
+                const name = this.getAttribute('data-name');
+                const type = this.getAttribute('data-type');
+                const min = this.getAttribute('data-min');
+                const max = this.getAttribute('data-max');
+
+                // Populate the form fields
+                document.querySelector('input[name="event_id"]').value = id;
+                document.querySelector('input[name="event_name"]').value = name;
+                
+                // Set the radio button for event type
+                document.querySelectorAll('input[name="event_type"]').forEach(radio => {
+                    if (radio.value === type) {
+                        radio.checked = true;
+                    }
+                });
+
+                document.querySelector('input[name="min_participants"]').value = min;
+                document.querySelector('input[name="max_participants"]').value = max;
+
+                // Update form title and button
+                document.querySelector('.event-form h3').textContent = 'Edit Event';
+                document.querySelector('button[name="save_event"]').textContent = 'Update';
+
+                // Show the form section
+                document.getElementById('singleEventContent').style.display = 'block';
+                document.getElementById('multipleEventContent').style.display = 'none';
+
+                // Scroll to form
+                document.querySelector('.event-form').scrollIntoView({ behavior: 'smooth' });
+            });
         });
     </script>
 </body>

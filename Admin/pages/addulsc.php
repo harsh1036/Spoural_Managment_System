@@ -11,6 +11,83 @@ if (!isset($_SESSION['login'])) {
 // Fetch session data
 $admin_username = $_SESSION['login'];
 
+// Initialize variables
+$id = $ulsc_id = $ulsc_name = $dept_id = $contact = "";
+
+// Handle delete operation
+if (isset($_GET['delete_id'])) {
+    try {
+        $delete_id = $_GET['delete_id'];
+        $sql = "DELETE FROM ulsc WHERE id = :id";
+        $stmt = $dbh->prepare($sql);
+        $stmt->bindParam(':id', $delete_id, PDO::PARAM_INT);
+        
+        if ($stmt->execute()) {
+            echo "<script>alert('ULSC deleted successfully!'); window.location.href='addulsc.php';</script>";
+        } else {
+            echo "<script>alert('Error deleting ULSC!');</script>";
+        }
+    } catch (PDOException $e) {
+        echo "<script>alert('Database error: " . $e->getMessage() . "');</script>";
+    }
+}
+
+// Handle edit operation - fetch ULSC data
+if (isset($_GET['edit_id'])) {
+    try {
+        $edit_id = $_GET['edit_id'];
+        $sql = "SELECT * FROM ulsc WHERE id = :id";
+        $stmt = $dbh->prepare($sql);
+        $stmt->bindParam(':id', $edit_id, PDO::PARAM_INT);
+        $stmt->execute();
+        
+        if ($ulsc = $stmt->fetch(PDO::FETCH_ASSOC)) {
+            $id = $ulsc['id'];
+            $ulsc_id = $ulsc['ulsc_id'];
+            $ulsc_name = $ulsc['ulsc_name'];
+            $dept_id = $ulsc['dept_id'];
+            $contact = $ulsc['contact'];
+        }
+    } catch (PDOException $e) {
+        echo "<script>alert('Database error: " . $e->getMessage() . "');</script>";
+    }
+}
+
+// Handle form submission
+if (isset($_POST['save_ulsc'])) {
+    $ulsc_id = $_POST['ulsc_id'];
+    $ulsc_name = $_POST['ulsc_name'];
+    $dept_id = $_POST['dept_id'];
+    $contact = $_POST['contact'];
+    $id = $_POST['id'];
+
+    try {
+        if (!empty($id)) {
+            // Update existing ULSC
+            $sql = "UPDATE ulsc SET ulsc_id = :ulsc_id, ulsc_name = :name, dept_id = :dept_id, contact = :contact WHERE id = :id";
+            $stmt = $dbh->prepare($sql);
+            $stmt->bindParam(':id', $id, PDO::PARAM_INT);
+        } else {
+            // Insert new ULSC
+            $sql = "INSERT INTO ulsc (ulsc_id, ulsc_name, dept_id, contact) VALUES (:ulsc_id, :name, :dept_id, :contact)";
+            $stmt = $dbh->prepare($sql);
+        }
+
+        $stmt->bindParam(':ulsc_id', $ulsc_id, PDO::PARAM_STR);
+        $stmt->bindParam(':name', $ulsc_name, PDO::PARAM_STR);
+        $stmt->bindParam(':dept_id', $dept_id, PDO::PARAM_INT);
+        $stmt->bindParam(':contact', $contact, PDO::PARAM_STR);
+
+        if ($stmt->execute()) {
+            echo "<script>alert('ULSC saved successfully!'); window.location.href='addulsc.php';</script>";
+        } else {
+            echo "<script>alert('Error saving ULSC!');</script>";
+        }
+    } catch (PDOException $e) {
+        echo "<script>alert('Database error: " . $e->getMessage() . "');</script>";
+    }
+}
+
 ?>
 
 <!DOCTYPE html>
@@ -183,7 +260,10 @@ $admin_username = $_SESSION['login'];
                                     <td><?= htmlspecialchars($row['dept_name']) ?></td>
                                     <td><?= htmlspecialchars($row['contact']) ?></td>
                                     <td>
-                                        <a href="addulsc.php?edit_id=<?= $row['id'] ?>">
+                                        <a href="#" class="edit-ulsc" data-id="<?= $row['id'] ?>" data-ulsc-id="<?= htmlspecialchars($row['ulsc_id']) ?>" 
+                                           data-ulsc-name="<?= htmlspecialchars($row['ulsc_name']) ?>" 
+                                           data-dept-id="<?= $row['dept_id'] ?>" 
+                                           data-contact="<?= htmlspecialchars($row['contact']) ?>">
                                             <img src="../assets/images/edit.jpg" alt="Edit" width="20" height="20">
                                         </a>
                                     </td>
@@ -273,6 +353,32 @@ $admin_username = $_SESSION['login'];
         document.getElementById('multipleULSCBtn').addEventListener('click', function(e) {
             e.preventDefault();
             toggleContent('multipleULSCContent');
+        });
+
+        document.querySelectorAll('.edit-ulsc').forEach(button => {
+            button.addEventListener('click', function(e) {
+                e.preventDefault();
+                
+                const id = this.getAttribute('data-id');
+                const ulscId = this.getAttribute('data-ulsc-id');
+                const ulscName = this.getAttribute('data-ulsc-name');
+                const deptId = this.getAttribute('data-dept-id');
+                const contact = this.getAttribute('data-contact');
+
+                document.querySelector('input[name="id"]').value = id;
+                document.querySelector('input[name="ulsc_id"]').value = ulscId;
+                document.querySelector('input[name="ulsc_name"]').value = ulscName;
+                document.querySelector('select[name="dept_id"]').value = deptId;
+                document.querySelector('input[name="contact"]').value = contact;
+
+                document.querySelector('.ulsc-form h3').textContent = 'Edit ULSC';
+                document.querySelector('button[name="save_ulsc"]').textContent = 'Update';
+
+                document.getElementById('singleULSCContent').style.display = 'block';
+                document.getElementById('multipleULSCContent').style.display = 'none';
+
+                document.querySelector('.ulsc-form').scrollIntoView({ behavior: 'smooth' });
+            });
         });
     </script>
 </body>
