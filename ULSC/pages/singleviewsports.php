@@ -12,7 +12,7 @@ if (!isset($_SESSION['login'])) {
 $admin_username = $_SESSION['login'];
 
 // Fetch all cultural events once
-$query = $dbh->prepare("SELECT * FROM events WHERE event_type = 'Sports' ORDER BY id");
+$query = $dbh->prepare("SELECT * FROM events WHERE event_type = 'Sports' ORDER BY event_name");
 $query->execute();
 $all_events = $query->fetchAll(PDO::FETCH_ASSOC);
 
