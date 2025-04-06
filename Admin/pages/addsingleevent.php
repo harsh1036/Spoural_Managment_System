@@ -106,18 +106,18 @@ $events = $query->fetchAll(PDO::FETCH_ASSOC);
 
                             <label>Event Name:</label>
                             <input type="text" name="event_name" class="input-field"
-                                value="<?= htmlspecialchars($event_name) ?>" required><br><br>
+                                value="<?= htmlspecialchars($event_name) ?>" required>
 
                             <label>Event Type: </label>
+                            <br>
                             <input type="radio" name="event_type" value="Sports"
                                 <?= ($event_type == 'Sports') ? 'checked' : '' ?> required> Sports
                             <input type="radio" name="event_type" value="Cultural"
-                                <?= ($event_type == 'Cultural') ? 'checked' : '' ?> required> Cultural<br><br>
+                                <?= ($event_type == 'Cultural') ? 'checked' : '' ?> required> Cultural
 
                             <label>Min Participants:</label>
                             <input type="number" name="min_participants" class="input-field"
-                                value="<?= htmlspecialchars($min_participants) ?>" required><br><br>
-
+                                value="<?= htmlspecialchars($min_participants) ?>" required>
                             <label>Max Participants:</label>
                             <input type="number" name="max_participants" class="input-field"
                                 value="<?= htmlspecialchars($max_participants) ?>" required>

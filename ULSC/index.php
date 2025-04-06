@@ -444,11 +444,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         <div class="formbg-inner padding-horizontal--48">
                             <span class="padding-bottom--15">Sign in to your ULSC account</span>
                             
-                            <?php if(isset($error)): ?>
+                            <!-- <?php if(isset($error)): ?>
                             <div class="error-message" style="color: #ef476f; background-color: rgba(239, 71, 111, 0.1); padding: 10px; border-radius: 6px; margin-bottom: 15px; text-align: center; font-weight: 500;">
                                 <i class='bx bx-error-circle'></i> <?php echo $error; ?>
                             </div>
-                            <?php endif; ?>
+                            <?php endif; ?> -->
                             
                             <form id="stripe-login" method="post">
                                 <div class="field padding-bottom--24">
@@ -461,14 +461,15 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                                 <div class="field padding-bottom--24">
                                     <div class="grid--50-50">
                                         <label for="password">Password</label>
-                                        <div class="reset-pass">
-                                            <a href="Excel/resetpassword1.php">Forgot your password?</a>
-                                        </div>
+  
                                     </div>
                                     <div class="input-container icon-field">
                                         <i class='bx bx-lock-alt input-icon'></i>
                                         <input type="password" name="password" id="password" required>
                                     </div>
+                                    <div class="reset-pass">
+                                            <a href="Excel/resetpassword1.php">Forgot your password?</a>
+                                        </div>
                                 </div>
                                 <div class="field field-checkbox padding-bottom--24 flex-flex align-center">
                                     <label for="checkbox">
