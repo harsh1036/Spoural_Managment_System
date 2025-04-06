@@ -55,12 +55,7 @@ if (isset($_GET['logout'])) {
                     <span class="links_name">View Cultural Entries</span>
                 </a>
             </li>
-            <li class="log_out">
-                <a href="?logout=true">
-                    <i class='bx bx-log-out'></i>
-                    <span class="links_name">Log out</span>
-                </a>
-            </li>
+            
         </ul>
     </div>
 

@@ -52,19 +52,19 @@ if (!empty($selected_event_id)) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Spoural Management System</title>
+    <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
     <link rel="stylesheet" href="../assets/css/style.css">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    
+
 </head>
 
 <body>
+<?php include_once('../includes/sidebar.php'); ?>
 <div class="home-content">
-    <?php include_once('../includes/sidebar.php'); ?>
     <div class="home-page">
         <section class="new-admin">
             <form method="POST" action="" style="padding-top:50px">
                 <label for="event_select">Select Cultural Event:</label>
-                <select name="selected_event" id="event_select">
+                <select class="form-select" name="selected_event" id="event_select">
                     <option value="">-- Select Event --</option>
                     <?php foreach ($all_events as $event) { ?>
                         <option value="<?= $event['id'] ?>" <?= ($selected_event_id == $event['id']) ? 'selected' : '' ?>>
@@ -72,7 +72,25 @@ if (!empty($selected_event_id)) {
                         </option>
                     <?php } ?>
                 </select>
-                <button type="submit">View Participants</button>
+                
+                <button 
+                style="
+                        background-color: #007BFF; 
+                        color: #fff; 
+
+                        border: none; 
+                        padding: 8px 15px; 
+                        border-radius: 5px; 
+                        cursor: pointer; 
+                        display: flex; 
+                        align-items: center; 
+                        gap: 8px;
+                        margin-top:15px;
+                        margin-left:110px;
+                        
+                        font-size: 12px;
+                    "
+                type="submit">View Participants</button>
             </form>
         </section>
 
@@ -108,8 +126,8 @@ if (!empty($selected_event_id)) {
        <?php if (!empty($selected_event_id)) { ?>
     <?php if (!empty($participants)) { ?>
         <section class="view-admin-details">
-            <h2>Participants List for <?= $selected_event_name ?></h2>
-            <table border="2px" class="table table-bordered table-striped small-table">
+            <h2 class="cntr">Participants List for <?= $selected_event_name ?></h2>
+            <table border="2px" class="cntr table table-bordered table-striped small-table">
                 <thead>
                     <tr>
                         <th>ID</th>

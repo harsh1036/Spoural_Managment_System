@@ -18,7 +18,7 @@ $ulsc = $query->fetch(PDO::FETCH_ASSOC);
 if (!$ulsc) {
     session_destroy();
     header("Location: ../index.php?error=invalid_session");
-    exit();
+    exit;
 }
 
 $dept_id = $ulsc['dept_id'];
