@@ -2,9 +2,48 @@
 require_once(__DIR__ . '/../../tcpdf/tcpdf.php');
 include('../includes/config.php');
 
+// Start session if not already started
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
+// Check for ULSC login
+if (!isset($_SESSION['ulsc_id'])) {
+    header("Location: ../index.php");
+    exit();
+}
+
+// Fetch ULSC Member's Department ID
+$ulsc_id = $_SESSION['ulsc_id'];
+
+// Fetch ULSC department details
+$sql = "SELECT u.dept_id, d.dept_name, u.ulsc_name 
+        FROM ulsc u 
+        JOIN departments d ON u.dept_id = d.dept_id 
+        WHERE u.ulsc_id = :ulsc_id";
+$query = $dbh->prepare($sql);
+$query->bindParam(':ulsc_id', $ulsc_id, PDO::PARAM_STR);
+$query->execute();
+$ulsc_user = $query->fetch(PDO::FETCH_ASSOC);
+
+if (!$ulsc_user) {
+    session_destroy();
+    header("Location: ../index.php?error=invalid_session");
+    exit();
+}
+
+// Store ULSC's department ID safely
+$dept_id = $ulsc_user['dept_id'];
+$dept_name = htmlspecialchars($ulsc_user['dept_name']);
+$ulsc_name = htmlspecialchars($ulsc_user['ulsc_name']);
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $selected_event_id = isset($_POST['selected_event_pdf']) ? intval($_POST['selected_event_pdf']) : null;
     $download_all = isset($_POST['download_all_data']);
+    
+    // We'll use the authenticated user's department ID regardless of what was posted
+    // This ensures we only show data for the logged-in ULSC's department
+    $department_id = $dept_id;
 
     // Extend TCPDF to add custom footer
     class MYPDF extends TCPDF {
@@ -28,7 +67,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $pdf = new MYPDF();
     $pdf->SetCreator(PDF_CREATOR);
     $pdf->SetAuthor('ULSC');
-    $pdf->SetTitle('Sports Event Participants');
+    $pdf->SetTitle($dept_name . ' Sports Event Participants');
 
     // Remove default header/footer
     $pdf->setPrintHeader(false);
@@ -46,16 +85,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $pdf->Image($logoPath, 10, 10, 30);
     }
 
+    // Add department name and ULSC name
+    $pdf->SetFont('helvetica', 'B', 14);
+    $pdf->Cell(0, 10, 'Department: ' . $dept_name, 0, 1, 'R');
+    $pdf->Cell(0, 10, 'ULSC: ' . $ulsc_name, 0, 1, 'R');
+
     $pdf->Ln(20);
 
     if ($download_all) {
-        $eventQuery = "SELECT id, event_name FROM events WHERE event_type = 'Sports'";
+        // Get all sports events
+        $eventQuery = "SELECT id, event_name FROM events WHERE event_type = 'Sports' ORDER BY event_name";
         $eventResult = $dbh->prepare($eventQuery);
         $eventResult->execute();
         $events = $eventResult->fetchAll(PDO::FETCH_ASSOC);
 
         foreach ($events as $event) {
-            generateEventTable($pdf, $dbh, $event['id'], $event['event_name']);
+            generateEventTable($pdf, $dbh, $event['id'], $event['event_name'], $department_id, $ulsc_name);
         }
     } elseif ($selected_event_id) {
         $eventQuery = "SELECT event_name FROM events WHERE id = :event_id AND event_type = 'Sports'";
@@ -65,7 +110,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $event = $stmt->fetch(PDO::FETCH_ASSOC);
 
         if ($event) {
-            generateEventTable($pdf, $dbh, $selected_event_id, $event['event_name']);
+            generateEventTable($pdf, $dbh, $selected_event_id, $event['event_name'], $department_id, $ulsc_name);
         } else {
             die("Invalid event selection.");
         }
@@ -74,30 +119,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     // Output the PDF
-    $pdf->Output('Sports_event_participants.pdf', 'D');
+    $pdf->Output($dept_name . '_Sports_event_participants.pdf', 'D');
     exit();
-}function generateEventTable($pdf, $dbh, $eventId, $eventName) {
-    try {
-        // Get ULSC name for this event
-        $ulscQuery = "SELECT u.ULSC_NAME 
-                     FROM participants p
-                     JOIN departments d ON p.dept_id = d.dept_id
-                     JOIN ulsc u ON d.dept_id = u.dept_id
-                     WHERE p.event_id = :event_id
-                     LIMIT 1";
-        $ulscStmt = $dbh->prepare($ulscQuery);
-        $ulscStmt->bindParam(':event_id', $eventId, PDO::PARAM_INT);
-        $ulscStmt->execute();
-        $ulsc = $ulscStmt->fetch(PDO::FETCH_ASSOC);
-        $ulscName = $ulsc ? $ulsc['ULSC_NAME'] : 'N/A';
+}
 
-        // Get participants
+function generateEventTable($pdf, $dbh, $eventId, $eventName, $departmentId, $ulscName) {
+    try {
+        // Get participants FILTERED BY DEPARTMENT
         $participantQuery = "SELECT p.student_id 
                            FROM participants p 
                            WHERE p.event_id = :event_id
+                           AND p.dept_id = :dept_id
                            ORDER BY p.student_id";
         $stmt = $dbh->prepare($participantQuery);
         $stmt->bindParam(':event_id', $eventId, PDO::PARAM_INT);
+        $stmt->bindParam(':dept_id', $departmentId, PDO::PARAM_INT);
         $stmt->execute();
         $participants = $stmt->fetchAll(PDO::FETCH_ASSOC);
         $participantCount = count($participants);
@@ -161,7 +197,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             $table .= '<tr class="no-data">
                         <td colspan="3" style="text-align:center;padding:12px;border:1px solid #ddd;">
-                            No registered participants
+                            No registered participants for this event in your department.
                         </td>
                       </tr>';
         }
