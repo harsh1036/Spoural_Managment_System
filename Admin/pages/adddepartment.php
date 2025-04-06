@@ -3,12 +3,81 @@ session_start();
 include('../includes/config.php');
 
 // Check if user is logged in, else redirect to login
-
+if (!isset($_SESSION['login'])) {
+    header("Location: ../index.php");
+    exit;
+}
 
 // Fetch session data
 $admin_username = $_SESSION['login'];
+
 // Initialize variables
-$event_id = $event_name = $event_type = $min_participants = $max_participants = "";
+$dept_id = $dept_name = "";
+
+// Handle delete operation
+if (isset($_GET['delete_id'])) {
+    try {
+        $delete_id = $_GET['delete_id'];
+        $sql = "DELETE FROM departments WHERE dept_id = :id";
+        $stmt = $dbh->prepare($sql);
+        $stmt->bindParam(':id', $delete_id, PDO::PARAM_INT);
+        
+        if ($stmt->execute()) {
+            echo "<script>alert('Department deleted successfully!'); window.location.href='adddepartment.php';</script>";
+        } else {
+            echo "<script>alert('Error deleting department!');</script>";
+        }
+    } catch (PDOException $e) {
+        echo "<script>alert('Database error: " . $e->getMessage() . "');</script>";
+    }
+}
+
+// Handle edit operation - fetch department data
+if (isset($_GET['edit_id'])) {
+    try {
+        $edit_id = $_GET['edit_id'];
+        $sql = "SELECT * FROM departments WHERE dept_id = :id";
+        $stmt = $dbh->prepare($sql);
+        $stmt->bindParam(':id', $edit_id, PDO::PARAM_INT);
+        $stmt->execute();
+        
+        if ($department = $stmt->fetch(PDO::FETCH_ASSOC)) {
+            $dept_id = $department['dept_id'];
+            $dept_name = $department['dept_name'];
+        }
+    } catch (PDOException $e) {
+        echo "<script>alert('Database error: " . $e->getMessage() . "');</script>";
+    }
+}
+
+// Handle form submission
+if (isset($_POST['save_department'])) {
+    $dept_name = $_POST['dept_name'];
+    $dept_id = $_POST['dept_id'];
+
+    try {
+        if (!empty($dept_id)) {
+            // Update existing department
+            $sql = "UPDATE departments SET dept_name = :name WHERE dept_id = :id";
+            $stmt = $dbh->prepare($sql);
+            $stmt->bindParam(':id', $dept_id, PDO::PARAM_INT);
+        } else {
+            // Insert new department
+            $sql = "INSERT INTO departments (dept_name) VALUES (:name)";
+            $stmt = $dbh->prepare($sql);
+        }
+
+        $stmt->bindParam(':name', $dept_name, PDO::PARAM_STR);
+
+        if ($stmt->execute()) {
+            echo "<script>alert('Department saved successfully!'); window.location.href='adddepartment.php';</script>";
+        } else {
+            echo "<script>alert('Error saving department!');</script>";
+        }
+    } catch (PDOException $e) {
+        echo "<script>alert('Database error: " . $e->getMessage() . "');</script>";
+    }
+}
 
 ?>
 
@@ -16,61 +85,188 @@ $event_id = $event_name = $event_type = $min_participants = $max_participants = 
 <html lang="en">
 
 <head>
-
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Spoural Management System</title>
     <link rel="stylesheet" href="../assets/css/style.css">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-
-
+    <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
 </head>
 
 <body>
+    <?php include_once('../includes/sidebar.php'); ?>
+
     <div class="home-content">
-        <?php
-        include_once('../includes/sidebar.php');
-        ?>
-        <br><br>
-        <div class="home-content">
-            <br><br>
-            <div class="overview-boxes">
-                <div class="box">
-
-                    <div class="right-side">
-                        <a href="addsingledepartment.php">
-                            <div class="box-topic">Upload Single Department</div>
-                            <div class="number">
-
-                            </div>
-                            <div class="indicator">
-                                <i class='bx bx-up-arrow-alt'></i>
-                                <span class="text">Up to date</span>
-                            </div>
-                    </div>
-                    <i class='bx bx-user-circle bx-tada cart one'></i>
-                </div>
-                <div class="box">
-                    <div class="right-side">
-                        <a href="importdepartment.php">
-                            <div class="box-topic">Upload Multiple Department</div>
-                            <div class="number">
-
-                            </div>
-                            <div class="indicator">
-                                <i class='bx bx-up-arrow-alt'></i>
-                                <span class="text">Up to date</span>
-                            </div>
-                    </div>
-                    <i class='bx  bxs-user-pin bx-flashing cart two'></i>
+        <div class="participant-entry-container">
+            <div class="content-card">
+                <div class="content-header">
+                    <h2><i class='bx bx-user-circle'></i> Departments</h2>
                 </div>
 
-                </section>
+                <div class="quick-access-grid">
+                    <a href="#" class="quick-access-card" id="singleDeptBtn">
+                        <i class='bx bx-detail'></i>
+                        <h3>Upload Single Department</h3>
+                        <p>Add a single department</p>
+                    </a>
+
+                    <a href="#" class="quick-access-card" id="multipleDeptBtn">
+                        <i class='bx bx-list-ul'></i>
+                        <h3>Upload Multiple Departments</h3>
+                        <p>Add multiple departments</p>
+                    </a>
+                </div>
             </div>
-            <?php
-                        include_once('../includes/footer.php');
-        ?>
 
+            <div class="content-card" id="singleDeptContent" style="display: none;">
+                <div class="content-header">
+                    <h2><i class='bx bx-detail'></i> Single Department Management</h2>
+                </div>
+                <div class="main-content">
+                    <section class="department-form">
+                        <h3><?= isset($_GET['edit_id']) ? 'Edit Department' : 'New Department' ?></h3>
+                        <form method="post" action="adddepartment.php" class="department-input-form">
+                            <input type="hidden" name="dept_id" value="<?= isset($_GET['edit_id']) ? htmlspecialchars($_GET['edit_id']) : '' ?>">
+
+                            <label>Department Name:</label>
+                            <input type="text" name="dept_name" class="input-field" value="<?= isset($dept_name) ? htmlspecialchars($dept_name) : '' ?>" required>
+
+                            <button type="submit" name="save_department" class="submit-button"><?= isset($_GET['edit_id']) ? 'Update' : 'Submit' ?></button>
+                        </form>
+                    </section>
+                    <br><br>
+                    <section class="department-table">
+                        <h3>View Departments</h3>
+                        <table class="styled-table">
+                            <thead>
+                                <tr>
+                                    <th>Department ID</th>
+                                    <th>Department Name</th>
+                                    <th>Edit</th>
+                                    <th>Remove</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php 
+                                $query = $dbh->prepare("SELECT * FROM departments ORDER BY dept_id DESC");
+                                $query->execute();
+                                $departments = $query->fetchAll(PDO::FETCH_ASSOC);
+                                foreach ($departments as $dept) { 
+                                ?>
+                                <tr>
+                                    <td><?= htmlspecialchars($dept['dept_id']) ?></td>
+                                    <td><?= htmlspecialchars($dept['dept_name']) ?></td>
+                                    <td>
+                                        <a href="#" class="edit-dept btn btn-sm btn-primary" data-id="<?= $dept['dept_id'] ?>" data-name="<?= htmlspecialchars($dept['dept_name']) ?>">
+                                            <i class='bx bx-edit'></i> Edit
+                                        </a>
+                                    </td>
+                                    <td>
+                                        <a href="adddepartment.php?delete_id=<?= $dept['dept_id'] ?>" class="btn btn-sm btn-danger" onclick="return confirm('Are you sure?')">
+                                            <i class='bx bx-trash'></i> Delete
+                                        </a>
+                                    </td>
+                                </tr>
+                                <?php } ?>
+                            </tbody>
+                        </table>
+                    </section>
+                </div>
+            </div>
+
+            <div class="content-card" id="multipleDeptContent" style="display: none;">
+                <div class="content-header">
+                    <h2><i class='bx bx-list-ul'></i> Multiple Departments Management</h2>
+                </div>
+                <div class="main-content">
+                    <div class="container mt-3">
+                        <div class="row justify-content-center">
+                            <div class="col-md-8">
+                                <div class="card shadow-lg border-0 rounded-3">
+                                    <div class="card-body">
+                                        <?php if (isset($message)) echo $message; ?>
+                                        <a href="?download_template=1" class="btn btn-info w-100 mb-3">📥 Download Template</a>
+                                        <form method="POST" enctype="multipart/form-data">
+                                            <div class="mb-3">
+                                                <label for="excel_file" class="form-label">Upload Excel File (.xlsx)</label>
+                                                <input type="file" class="form-control" id="excel_file" name="excel_file" accept=".xlsx" required>
+                                            </div>
+                                            <div class="d-grid">
+                                                <button type="submit" name="import" class="btn btn-success">📥 Import Data</button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- <div class="content-card">
+                <div class="content-header">
+                    <h2><i class='bx bx-info-circle'></i> Department Information</h2>
+                </div>
+                <div class="card-content">
+                    <p>Use the options above to manage departments. You can:</p>
+                    <ul>
+                        <li>View the list of departments</li>
+                        <li>Manage department details</li>
+                        <li>View all department information at once</li>
+                    </ul>
+                </div>
+            </div> -->
+        </div>
+    </div>
+
+    <?php include_once('../includes/footer.php'); ?>
+
+    <script>
+        function toggleContent(contentId) {
+            const content = document.getElementById(contentId);
+            const otherContent = contentId === 'singleDeptContent' ? 
+                document.getElementById('multipleDeptContent') : 
+                document.getElementById('singleDeptContent');
+            
+            if (content.style.display === 'none') {
+                content.style.display = 'block';
+                otherContent.style.display = 'none';
+            } else {
+                content.style.display = 'none';
+            }
+        }
+
+        document.getElementById('singleDeptBtn').addEventListener('click', function(e) {
+            e.preventDefault();
+            toggleContent('singleDeptContent');
+        });
+
+        document.getElementById('multipleDeptBtn').addEventListener('click', function(e) {
+            e.preventDefault();
+            toggleContent('multipleDeptContent');
+        });
+
+        document.querySelectorAll('.edit-dept').forEach(button => {
+            button.addEventListener('click', function(e) {
+                e.preventDefault();
+                
+                const id = this.getAttribute('data-id');
+                const name = this.getAttribute('data-name');
+
+                document.querySelector('input[name="dept_id"]').value = id;
+                document.querySelector('input[name="dept_name"]').value = name;
+
+                document.querySelector('.department-form h3').textContent = 'Edit Department';
+
+                document.querySelector('button[name="save_department"]').textContent = 'Update';
+
+                document.getElementById('singleDeptContent').style.display = 'block';
+                document.getElementById('multipleDeptContent').style.display = 'none';
+
+                document.querySelector('.department-form').scrollIntoView({ behavior: 'smooth' });
+            });
+        });
+    </script>
 </body>
 
 </html>

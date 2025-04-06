@@ -2,6 +2,8 @@
 session_start();
 include('includes/config.php');
 
+
+
 if (isset($_POST['login'])) {
     $username = $_POST['username'];
     $password = $_POST['password'];
@@ -47,283 +49,431 @@ if (isset($_POST['login'])) {
             --bg-primary: #ffffff;
             --transition-speed: 0.2s;
         }
-        
+
         * {
-            margin: 0;
             padding: 0;
+            margin: 0;
+            color: #1a1f36;
             box-sizing: border-box;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            word-wrap: break-word;
+            font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica Neue, Ubuntu, sans-serif;
         }
-        
+
         body {
+            min-height: 100%;
             background-color: #2942a6;
-            min-height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
         }
-        
-        .login-container {
+
+        h1 {
+            letter-spacing: -1px;
+        }
+
+        a {
+            color: #2942a6;
+            text-decoration: unset;
+        }
+
+        .login-root {
+            background: #fff;
             display: flex;
             width: 100%;
-            max-width: 1280px;
-            height: 100vh;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+
+        .loginbackground {
+            min-height: 692px;
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            top: 0;
+            z-index: 0;
+            overflow: hidden;
+        }
+
+        .flex-flex {
+            display: flex;
+        }
+
+        .align-center {
+            align-items: center;
+        }
+
+        .center-center {
+            align-items: center;
+            justify-content: center;
+        }
+
+        .box-root {
+            box-sizing: border-box;
+        }
+
+        .flex-direction--column {
+            -ms-flex-direction: column;
+            flex-direction: column;
+        }
+
+        .loginbackground-gridContainer {
+            display: -ms-grid;
+            display: grid;
+            -ms-grid-columns: [start] 1fr [left-gutter] (86.6px)[16] [left-gutter] 1fr [end];
+            grid-template-columns: [start] 1fr [left-gutter] repeat(16, 86.6px) [left-gutter] 1fr [end];
+            -ms-grid-rows: [top] 1fr [top-gutter] (64px)[8] [bottom-gutter] 1fr [bottom];
+            grid-template-rows: [top] 1fr [top-gutter] repeat(8, 64px) [bottom-gutter] 1fr [bottom];
+            justify-content: center;
+            margin: 0 -2%;
+            transform: rotate(-12deg) skew(-12deg);
+        }
+
+        .box-divider--light-all-2 {
+            box-shadow: inset 0 0 0 2px #e3e8ee;
+        }
+
+        .box-background--blue {
+            background-color: #2942a6;
+        }
+
+        .box-background--white {
             background-color: #ffffff;
         }
-        
-        .login-left {
-            flex: 1;
-            position: relative;
-            background: #8f8f8f url('assets/images/charusat.png') center/cover no-repeat;
+
+        .box-background--blue800 {
+            background-color: #1a307c;
         }
-        
-        .login-left::before {
-            content: "";
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.5);
+
+        .box-background--gray100 {
+            background-color: #e3e8ee;
         }
-        
-        .left-content {
-            position: absolute;
-            bottom: 80px;
-            left: 60px;
-            color: white;
-            z-index: 10;
+
+        .box-background--cyan200 {
+            background-color: #0090e7;
         }
-        
-        .left-content h2 {
-            font-size: 2.5rem;
-            font-weight: 700;
-            margin-bottom: 16px;
+
+        .padding-top--64 {
+            padding-top: 64px;
         }
-        
-        .left-content p {
-            font-size: 1.1rem;
-            max-width: 80%;
+
+        .padding-top--24 {
+            padding-top: 24px;
         }
-        
-        .login-right {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
+
+        .padding-top--48 {
+            padding-top: 48px;
+        }
+
+        .padding-bottom--24 {
+            padding-bottom: 24px;
+        }
+
+        .padding-horizontal--48 {
+            padding: 48px;
+        }
+
+        .padding-bottom--15 {
+            padding-bottom: 15px;
+        }
+
+        .flex-justifyContent--center {
+            -ms-flex-pack: center;
             justify-content: center;
-            padding: 60px;
         }
-        
-        .logo-container {
+
+        .formbg {
+            margin: 0px auto;
+            width: 100%;
+            max-width: 448px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+
+        span {
+            display: block;
+            font-size: 20px;
+            line-height: 28px;
+            color: #1a1f36;
+        }
+
+        label {
+            margin-bottom: 10px;
+        }
+
+        .reset-pass a,
+        label {
+            font-size: 14px;
+            font-weight: 600;
+            display: block;
+        }
+
+        .reset-pass>a {
+            text-align: right;
+            margin-bottom: 10px;
+        }
+
+        .grid--50-50 {
+            display: grid;
+            grid-template-columns: 50% 50%;
+            align-items: center;
+        }
+
+        .field input {
+            font-size: 16px;
+            line-height: 28px;
+            padding: 8px 16px;
+            width: 100%;
+            min-height: 44px;
+            border: unset;
+            border-radius: 4px;
+            outline-color: rgb(84 105 212 / 0.5);
+            background-color: rgb(255, 255, 255);
+            box-shadow: rgba(0, 0, 0, 0) 0px 0px 0px 0px,
+                rgba(0, 0, 0, 0) 0px 0px 0px 0px,
+                rgba(0, 0, 0, 0) 0px 0px 0px 0px,
+                rgba(60, 66, 87, 0.16) 0px 0px 0px 1px,
+                rgba(0, 0, 0, 0) 0px 0px 0px 0px,
+                rgba(0, 0, 0, 0) 0px 0px 0px 0px,
+                rgba(0, 0, 0, 0) 0px 0px 0px 0px;
+        }
+
+        input[type="submit"] {
+            background-color: #2942a6;
+            box-shadow: rgba(0, 0, 0, 0) 0px 0px 0px 0px,
+                rgba(0, 0, 0, 0) 0px 0px 0px 0px,
+                rgba(0, 0, 0, 0.12) 0px 1px 1px 0px,
+                #2942a6 0px 0px 0px 1px,
+                rgba(0, 0, 0, 0) 0px 0px 0px 0px,
+                rgba(0, 0, 0, 0) 0px 0px 0px 0px,
+                rgba(60, 66, 87, 0.08) 0px 2px 5px 0px;
+            color: #fff;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        input[type="submit"]:hover {
+            background-color: #1a307c;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 10px rgba(0, 0, 0, 0.2);
+        }
+
+        .field-checkbox input {
+            width: 20px;
+            height: 15px;
+            margin-right: 5px;
+            box-shadow: unset;
+            min-height: unset;
+        }
+
+        .field-checkbox label {
             display: flex;
             align-items: center;
-            margin-bottom: 50px;
+            margin: 0;
         }
-        
-        .logo-container img {
-            height: 50px;
-            margin-right: 12px;
-        }
-        
-        .logo-text {
-            display: flex;
-            flex-direction: column;
-        }
-        
-        .logo-title {
-            color: var(--text-primary);
-            font-weight: bold;
-            font-size: 1.4rem;
-            letter-spacing: 0.5px;
-        }
-        
-        .logo-subtitle {
-            color: var(--text-secondary);
-            font-size: 0.9rem;
-        }
-        
-        .login-form {
-            max-width: 400px;
-        }
-        
-        .login-form h2 {
-            font-size: 2rem;
-            color: var(--text-primary);
-            margin-bottom: 8px;
-        }
-        
-        .login-form p {
-            color: var(--text-secondary);
-            margin-bottom: 30px;
-        }
-        
-        .form-group {
-            margin-bottom: 24px;
-        }
-        
-        .form-group label {
+
+        a.ssolink {
             display: block;
-            margin-bottom: 8px;
-            color: var(--text-primary);
-            font-weight: 500;
+            text-align: center;
+            font-weight: 600;
         }
-        
+
+        .footer-link span {
+            font-size: 14px;
+            text-align: center;
+        }
+
+        .listing a {
+            color: #4563d8;
+            font-weight: 600;
+            margin: 0 10px;
+        }
+
+        .animationRightLeft {
+            animation: animationRightLeft 2s ease-in-out infinite;
+        }
+
+        .animationLeftRight {
+            animation: animationLeftRight 2s ease-in-out infinite;
+        }
+
+        .tans3s {
+            animation: animationLeftRight 3s ease-in-out infinite;
+        }
+
+        .tans4s {
+            animation: animationLeftRight 4s ease-in-out infinite;
+        }
+
+        @keyframes animationLeftRight {
+            0% {
+                transform: translateX(0px);
+            }
+            50% {
+                transform: translateX(1000px);
+            }
+            100% {
+                transform: translateX(0px);
+            }
+        }
+
+        @keyframes animationRightLeft {
+            0% {
+                transform: translateX(0px);
+            }
+            50% {
+                transform: translateX(-1000px);
+            }
+            100% {
+                transform: translateX(0px);
+            }
+        }
+
+        /* Added styles for icons in the input field */
         .input-container {
             position: relative;
         }
-        
+
         .input-icon {
             position: absolute;
             top: 50%;
             transform: translateY(-50%);
             left: 14px;
-            color: var(--primary-color);
+            color: #2942a6;
         }
-        
-        .form-control {
-            width: 100%;
-            padding: 16px 16px 16px 44px;
-            border: 1px solid #e2e8f0;
-            border-radius: 8px;
-            font-size: 1rem;
-            transition: all var(--transition-speed);
+
+        .icon-field input {
+            padding-left: 40px;
         }
-        
-        .form-control:focus {
-            outline: none;
-            border-color: var(--primary-color);
-            box-shadow: 0 0 0 3px rgba(41, 66, 166, 0.2);
-        }
-        
-        .forgot-link {
-            display: block;
-            text-align: right;
-            color: var(--primary-color);
-            text-decoration: none;
-            margin-bottom: 24px;
-            font-size: 0.9rem;
-        }
-        
-        .btn-login {
+
+        /* Logo styling */
+        .logo-container {
             display: flex;
             align-items: center;
             justify-content: center;
-            width: 100%;
-            padding: 14px;
-            background-color: var(--primary-color);
-            color: white;
-            border: none;
-            border-radius: 8px;
-            font-size: 1rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: background-color var(--transition-speed);
-        }
-        
-        .btn-login i {
-            margin-left: 8px;
-        }
-        
-        .btn-login:hover {
-            background-color: var(--primary-dark);
-        }
-        
-        .copyright {
-            margin-top: 40px;
-            color: var(--text-secondary);
-            font-size: 0.9rem;
-            text-align: center;
-        }
-        
-        .error-alert {
-            background-color: #fef2f2;
-            color: #b91c1c;
-            padding: 10px 16px;
-            border-radius: 8px;
             margin-bottom: 20px;
+        }
+
+        .logo-container img {
+            height: 60px;
+            margin-right: 15px;
+        }
+
+        .logo-text {
             display: flex;
-            align-items: center;
-            font-size: 0.9rem;
+            flex-direction: column;
         }
-        
-        .error-alert i {
-            margin-right: 10px;
+
+        .logo-title {
+            color: #1e293b;
+            font-weight: bold;
+            font-size: 1.8rem;
         }
-        
-        @media (max-width: 768px) {
-            .login-container {
-                flex-direction: column;
-                height: auto;
-            }
-            
-            .login-left {
-                display: none;
-            }
-            
-            .login-right {
-                padding: 40px 20px;
-            }
-            
-            .login-form {
-                max-width: 100%;
-            }
+
+        .logo-subtitle {
+            color: #64748b;
+            font-size: 1rem;
         }
     </style>
 </head>
 
 <body>
-    <div class="login-container">
-        <div class="login-left">
-            <div class="left-content">
-                <h2>Spoural Event System</h2>
-                <p>Manage sports events, teams, and participants with ease</p>
+    <div class="login-root">
+        <div class="box-root flex-flex flex-direction--column" style="min-height: 100vh;flex-grow: 1;">
+            <div class="loginbackground box-background--white padding-top--64">
+                <div class="loginbackground-gridContainer">
+                    <div class="box-root flex-flex" style="grid-area: top / start / 8 / end;">
+                        <div class="box-root" style="background-image: linear-gradient(white 0%, rgb(247, 250, 252) 33%); flex-grow: 1;">
                         </div>
                     </div>
-        <div class="login-right">
-            <div class="logo-container">
-                <img src="assets/images/ulsc.png" alt="ULSC Logo">
-                <div class="logo-text">
-                    <span class="logo-title">SPOURAL</span>
-                    <span class="logo-subtitle">Event Management System</span>
+                    <div class="box-root flex-flex" style="grid-area: 4 / 2 / auto / 5;">
+                        <div class="box-root box-divider--light-all-2 animationLeftRight tans3s" style="flex-grow: 1;"></div>
+                    </div>
+                    <div class="box-root flex-flex" style="grid-area: 6 / start / auto / 2;">
+                        <div class="box-root box-background--blue animationLeftRight" style="flex-grow: 1;"></div>
+                    </div>
+                    <div class="box-root flex-flex" style="grid-area: 7 / start / auto / 4;">
+                        <div class="box-root box-background--blue800 animationLeftRight tans3s" style="flex-grow: 1;"></div>
+                    </div>
+                    <div class="box-root flex-flex" style="grid-area: 8 / 4 / auto / 6;">
+                        <div class="box-root box-background--gray100 animationLeftRight tans4s" style="flex-grow: 1;"></div>
+                    </div>
+                    <div class="box-root flex-flex" style="grid-area: 2 / 15 / auto / end;">
+                        <div class="box-root box-background--cyan200 animationRightLeft tans4s" style="flex-grow: 1;"></div>
+                    </div>
+                    <div class="box-root flex-flex" style="grid-area: 3 / 14 / auto / end;">
+                        <div class="box-root box-background--blue animationRightLeft" style="flex-grow: 1;"></div>
+                    </div>
+                    <div class="box-root flex-flex" style="grid-area: 4 / 17 / auto / 20;">
+                        <div class="box-root box-background--gray100 animationRightLeft tans4s" style="flex-grow: 1;"></div>
+                    </div>
+                    <div class="box-root flex-flex" style="grid-area: 5 / 14 / auto / 17;">
+                        <div class="box-root box-divider--light-all-2 animationRightLeft tans3s" style="flex-grow: 1;"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="box-root padding-top--24 flex-flex flex-direction--column" style="flex-grow: 1; z-index: 9;">
+                <div class="box-root padding-top--48 padding-bottom--24 flex-flex flex-justifyContent--center">
+                    <div class="logo-container">
+                        <img src="assets/images/admin.png" alt="ULSC Logo">
+                        <div class="logo-text">
+                            <span class="logo-title">SPOURAL</span>
+                            <span class="logo-subtitle">Admin Login Portal</span>
                         </div>
                     </div>
-            
-            <div class="login-form">
-                <h2>Welcome Back</h2>
-                <p>Sign in to continue to your dashboard</p>
-                
-                <?php if(isset($error)): ?>
-                <div class="error-alert">
-                    <i class='bx bx-error-circle'></i>
-                    <?php echo $error; ?>
-                    </div>
-                <?php endif; ?>
-                
-                <form method="post">
-                    <div class="form-group">
-                        <label for="username">Username</label>
-                        <div class="input-container">
-                            <i class='bx bx-user input-icon'></i>
-                            <input type="text" id="username" name="username" class="form-control" placeholder="admin" required>
+                </div>
+                <div class="formbg-outer">
+                    <div class="formbg">
+                        <div class="formbg-inner padding-horizontal--48">
+                            <span class="padding-bottom--15">Sign in to your Admin account</span>
+
+                            <?php if(isset($error)): ?>
+                            <div class="error-message" style="color: #ef476f; background-color: rgba(239, 71, 111, 0.1); padding: 10px; border-radius: 6px; margin-bottom: 15px; text-align: center; font-weight: 500;">
+                                <i class='bx bx-error-circle'></i> <?php echo $error; ?>
+                            </div>
+                            <?php endif; ?>
+
+                            <form method="post">
+                                <div class="field padding-bottom--24">
+                                    <label for="username">Username</label>
+                                    <div class="input-container icon-field">
+                                        <i class='bx bx-user input-icon'></i>
+                                        <input type="text" id="username" name="username" class="form-control" placeholder="username" required>
+                                    </div>
+                                </div>
+                                <div class="field padding-bottom--24">
+                                    <div class="grid--50-50">
+                                        <label for="password">Password</label>
+                                        
+                                    </div>
+                                    <div class="input-container icon-field">
+                                        <i class='bx bx-lock-alt input-icon'></i>
+                                        <input type="password" id="password" name="password" class="form-control" placeholder="Enter your password" required>
+                                        
+                                    </div>
+                                    <div class="reset-pass">
+                                            <a href="#">Forgot your password?</a>
+                                        </div>
+                                </div>
+                                <div class="field field-checkbox padding-bottom--24 flex-flex align-center">
+                                    <label for="checkbox">
+                                        <input type="checkbox" name="checkbox" id="checkbox"> Stay signed in
+                                    </label>
+                                </div>
+                                <div class="field padding-bottom--24">
+                                    <input type="submit" name="login" value="Sign In">
+                                </div>
+                            </form>
                         </div>
                     </div>
-                    
-                    <div class="form-group">
-                        <label for="password">Password</label>
-                        <div class="input-container">
-                            <i class='bx bx-lock-alt input-icon'></i>
-                            <input type="password" id="password" name="password" class="form-control" placeholder="Enter your password" required>
+                    <div class="footer-link padding-top--24">
+                        <span>Need help with your credentials? <a href="https://www.charusat.ac.in/">Contact CHARUSAT IT</a></span>
+                        <div class="listing padding-top--24 padding-bottom--24 flex-flex center-center">
+                            <span><a href="#">© SPOURAL Event Management</a></span>
+                            <span><a href="#">Contact</a></span>
+                            <span><a href="#">Privacy & terms</a></span>
                         </div>
                     </div>
-                    
-                    <a href="#" class="forgot-link">Forgot password?</a>
-                    
-                    <button type="submit" name="login" class="btn-login">
-                        Sign In <i class='bx bx-right-arrow-alt'></i>
-                    </button>
-                </form>
-                
-                <p class="copyright">© <?php echo date('Y'); ?> Spoural Event Management System. All rights reserved.</p>
+                </div>
             </div>
         </div>
     </div>

@@ -326,16 +326,7 @@ try {
                     </div>
                 </div>
                 
-                <div class="stat-card">
-                    <div class="icon">
-                        <i class='bx bxs-graduation bx-tada'></i>
-                        </div>
-                    <div class="stat-info">
-                        <div class="stat-title">Total Students</div>
-                        <div class="stat-value"><?php echo $total_students; ?></div>
-                        <div class="stat-badge">Participants</div>
-                    </div>
-                </div>
+               
             </div>
             
             <div class="action-buttons">
@@ -361,7 +352,7 @@ try {
                 </a>
             </div>
             
-            <div class="recent-events-card">
+            <!-- <div class="recent-events-card">
                 <h3>Recent Events</h3>
                 <?php if ($recent_events && $recent_events->num_rows > 0): ?>
                     <?php while($event = $recent_events->fetch_assoc()): ?>
@@ -380,7 +371,7 @@ try {
                 <?php else: ?>
                     <p>No recent events found.</p>
                 <?php endif; ?>
-            </div>
+            </div> -->
         </div>
     </div>
 
