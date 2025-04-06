@@ -128,15 +128,17 @@ if (!empty($selected_event_id)) {
                     <table border="2px" class="cntr table table-bordered table-striped small-table">
                         <thead>
                             <tr>
-                                <th>ID</th>
+                                <th>Sr No.</th>
                                 <th>Participant ID</th>
                                 <th>Department Name</th>
                             </tr>
                         </thead>
                         <tbody>
-                            <?php foreach ($participants as $participant) { ?>
+                        <?php 
+                            $serial = 1;
+                            foreach ($participants as $participant) { ?>
                                 <tr>
-                                    <td><?= $participant['id'] ?></td>
+                                    <td><?= $serial++ ?></td>
                                     <td><?= htmlspecialchars($participant['student_id']) ?></td>
                                     <td><?= htmlspecialchars($participant['dept_name']) ?></td>
                                 </tr>
