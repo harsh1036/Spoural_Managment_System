@@ -1,5 +1,5 @@
 <?php
-session_start();
+include('../includes/session_management.php');
 include('../includes/config.php');
 include('sendMail.php');
 

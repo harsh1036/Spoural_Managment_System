@@ -1,5 +1,5 @@
 <?php
-session_start();
+include('../includes/session_management.php');
 include('../includes/config.php');
 
 // Check for ULSC login instead of admin login
@@ -58,67 +58,146 @@ $participants = $query->fetchAll(PDO::FETCH_ASSOC);
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Spoural Management System</title>
     <link rel="stylesheet" href="../assets/css/style.css">
-    
+    <style>
+        /* Custom styles for the participants table */
+        .content-wrapper {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .section-title {
+            color: #2c3e50;
+            text-align: center;
+            margin-bottom: 25px;
+            font-size: 24px;
+            font-weight: 600;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #4a6fdc;
+        }
+        
+        .participants-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            font-size: 15px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        
+        .participants-table thead {
+            background-color: #4a6fdc;
+            color: white;
+        }
+        
+        .participants-table th {
+            padding: 15px;
+            text-align: center;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+        }
+        
+        .participants-table td {
+            padding: 12px 15px;
+            text-align: center;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        
+        .participants-table tbody tr:nth-child(even) {
+            background-color: #f5f9ff;
+        }
+        
+        .participants-table tbody tr:hover {
+            background-color: #e8f0fe;
+            transition: all 0.2s ease;
+        }
+        
+        .empty-message {
+            text-align: center;
+            color: #e74c3c;
+            font-size: 16px;
+            padding: 20px;
+            background-color: #fff8e6;
+            border-radius: 8px;
+            margin: 20px auto;
+            max-width: 600px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+        
+        .download-btn {
+            background-color: #4CAF50; 
+            color: #fff; 
+            border: none; 
+            padding: 10px 18px; 
+            border-radius: 5px; 
+            cursor: pointer; 
+            display: flex; 
+            align-items: center; 
+            gap: 10px; 
+            margin: 20px auto;
+            font-size: 15px;
+            transition: background-color 0.3s;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+        
+        .download-btn:hover {
+            background-color: #45a049;
+        }
+        
+        .pdf-icon {
+            width: 22px;
+            height: 22px;
+        }
+    </style>
 </head>
 
 <body>
 <div class="home-content">
     <?php include_once('../includes/sidebar.php'); ?>
-    <div class="home-page" style="margin:0px">
-        <section class="new-admin"></section>
+    <div class="home-page">
+        <div class="content-wrapper">
+            <section class="new-admin"></section>
 
-        <!-- All Data PDF Button -->
-        <form method="POST" action="download_cultural_pdf.php">
-            <input type="hidden" name="download_all_data" value="1">
-            <input type="hidden" name="dept_id" value="<?= $dept_id ?>">
-            <button type="submit" name="download_pdf"
-                style="
-                    background-color: #4CAF50; 
-                    color: #fff; 
-                    border: none; 
-                    padding: 8px 15px; 
-                    border-radius: 5px; 
-                    cursor: pointer; 
-                    display: flex; 
-                    align-items: center; 
-                    gap: 8px; 
-                    margin-left:450px;
-                    font-size: 14px;
-                ">
-                <img src="../assets/images/pdf-icon.png" alt="PDF Icon" 
-                    style="width: 20px; height: 20px;">
-                Download <?= $dept_name ?> Department Data
-            </button>
-        </form>
+            <!-- All Data PDF Button -->
+            <form method="POST" action="download_cultural_pdf.php">
+                <input type="hidden" name="download_all_data" value="1">
+                <input type="hidden" name="dept_id" value="<?= $dept_id ?>">
+                <button type="submit" name="download_pdf" class="download-btn">
+                    <img src="../assets/images/pdf-icon.png" alt="PDF Icon" class="pdf-icon">
+                    Download <?= $dept_name ?> Department Data
+                </button>
+            </form>
 
-        <!-- Display cultural event participants for ULSC's department -->
-        <?php if (!empty($participants)) { ?>
-            <section class="view-admin-details">
-                <h2>All Participants for Cultural Events - <?= $dept_name ?> Department</h2>
-                <table border="2px" class="table table-bordered table-striped small-table">
-                    <thead>
-                        <tr>
-                            <th>ID</th>
-                            <th>Participant ID</th>
-                            <th>Department Name</th>
-                            <th>Event Name</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach ($participants as $participant) { ?>
+            <!-- Display cultural event participants for ULSC's department -->
+            <?php if (!empty($participants)) { ?>
+                <section class="view-admin-details">
+                    <h2 class="section-title">All Participants for Cultural Events - <?= $dept_name ?> Department</h2>
+                    <table class="participants-table">
+                        <thead>
                             <tr>
-                                <td><?= $participant['id'] ?></td>
-                                <td><?= htmlspecialchars($participant['student_id']) ?></td>
-                                <td><?= htmlspecialchars($participant['dept_name']) ?></td>
-                                <td><?= htmlspecialchars($participant['event_name']) ?></td>
+                                <th><center>Participant ID</th>
+                                <th><center>Department Name</th>
+                                <th><center>Event Name</th>
                             </tr>
-                        <?php } ?>
-                    </tbody>
-                </table>
-            </section>
-        <?php } else { ?>
-            <p style="text-align: center; color: red; font-size: 16px;">No cultural event participants found for <?= $dept_name ?> department.</p>
-        <?php } ?>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($participants as $participant) { ?>
+                                <tr>
+                                    <td><?= htmlspecialchars($participant['student_id']) ?></td>
+                                    <td><?= htmlspecialchars($participant['dept_name']) ?></td>
+                                    <td><?= htmlspecialchars($participant['event_name']) ?></td>
+                                </tr>
+                            <?php } ?>
+                        </tbody>
+                    </table>
+                </section>
+            <?php } else { ?>
+                <div class="empty-message">
+                    No cultural event participants found for <?= $dept_name ?> department.
+                </div>
+            <?php } ?>
+        </div>
     </div>
 </div>
 </body>

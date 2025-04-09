@@ -36,6 +36,9 @@ body {
     margin: 0;
     padding: 0;
     color: var(--text-primary);
+    overflow-x: hidden; /* Prevent horizontal scrolling */
+    min-height: 100vh;
+    width: 100%;
 }
 
 
@@ -101,16 +104,19 @@ body {
 
 .sidebar {
     position: fixed;
+    top: 0;
+    left: 0;
     height: 100%;
-    width: var(--sidebar-width);
-    background: linear-gradient(180deg, var(--primary-dark) 0%, var(--secondary-color) 100%);
-    transition: all var(--transition-speed) ease;
+    width: 260px;
+    background: linear-gradient(180deg, #1a307c 0%, #3358dd 100%);
+    transition: width 0.5s ease;
     z-index: 1000;
     box-shadow: 0 0 15px rgba(0, 0, 0, 0.1);
+    overflow-x: hidden;
 }
 
 .sidebar.active {
-    width: var(--sidebar-width-collapsed);
+    width: 60px;
 }
 
 .sidebar .logo-details {
@@ -118,25 +124,20 @@ body {
     display: flex;
     align-items: center;
     padding: 0 20px;
-    position: relative;
 }
 
 .sidebar .logo-details i {
     font-size: 28px;
-    font-weight: 500;
-    color: var(--text-light);
+    color: #fff;
     min-width: 60px;
     text-align: center;
-    transition: all var(--transition-speed);
 }
 
 .sidebar .logo-details .logo_name {
-    color: var(--text-light);
+    color: #fff;
     font-size: 24px;
     font-weight: 600;
     white-space: nowrap;
-    transition: all var(--transition-speed);
-    opacity: 1;
 }
 
 .sidebar.active .logo-details .logo_name {
@@ -151,14 +152,9 @@ body {
     padding-bottom: 100px;
 }
 
-.sidebar .nav-links::-webkit-scrollbar {
-    display: none;
-}
-
 .sidebar .nav-links li {
     position: relative;
     list-style: none;
-    transition: all var(--transition-speed);
 }
 
 .sidebar .nav-links li a {
@@ -167,35 +163,27 @@ body {
     display: flex;
     align-items: center;
     text-decoration: none;
-    transition: all var(--transition-speed);
     padding: 0 20px;
 }
 
-.sidebar .nav-links li a.active {
-    background: rgba(255, 255, 255, 0.1);
-    border-left: 4px solid var(--accent-color);
-}
-
+.sidebar .nav-links li a.active,
 .sidebar .nav-links li a:hover {
     background: rgba(255, 255, 255, 0.1);
-    border-left: 4px solid var(--accent-color);
+    border-left: 4px solid #0090e7;
 }
 
 .sidebar .nav-links li i {
     min-width: 40px;
     text-align: center;
     font-size: 18px;
-    color: var(--text-light);
-    transition: all var(--transition-speed);
+    color: #fff;
 }
 
 .sidebar .nav-links li a .links_name {
-    color: var(--text-light);
+    color: #fff;
     font-size: 15px;
     font-weight: 400;
     white-space: nowrap;
-    transition: all var(--transition-speed);
-    opacity: 1;
 }
 
 .sidebar.active .nav-links li a .links_name {
@@ -211,20 +199,38 @@ body {
 }
 
 
-/* Home Section Styling */
-
+/* Home Section */
 .home-section {
     position: relative;
-    background: var(--bg-primary);
+    background: #f5f5f5;
     min-height: 100vh;
-    width: calc(100% - var(--sidebar-width));
-    left: var(--sidebar-width);
-    transition: all var(--transition-speed) ease;
+    margin-left: 260px;
+    width: calc(100% - 260px);
+    transition: all 0.5s ease;
+    overflow-x: hidden; /* Prevent content from overflowing */
 }
 
-.sidebar.active~.home-section {
-    width: calc(100% - var(--sidebar-width-collapsed));
-    left: var(--sidebar-width-collapsed);
+.home-section nav {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    height: 80px;
+    position: fixed;
+    top: 0;
+    left: 0; /* Ensure nav is always aligned to the left of the home section */
+    background: #fff;
+    margin-left: 260px;
+    width: calc(100% - 260px);
+    padding: 0 20px;
+    box-shadow: 0 5px 10px rgba(0, 0, 0, 0.05);
+    transition: all 0.5s ease;
+    z-index: 100;
+    box-sizing: border-box; /* Include padding in width calculation */
+}
+
+.sidebar.active + .home-section {
+    margin-left: 60px;
+    width: calc(100% - 60px);
 }
 
 .home-section nav {
@@ -234,17 +240,8 @@ body {
     height: 80px;
     background: var(--bg-secondary);
     position: fixed;
-    width: calc(100% - var(--sidebar-width));
-    left: var(--sidebar-width);
     z-index: 100;
     padding: 0 20px;
-    box-shadow: 0 5px 10px rgba(0, 0, 0, 0.05);
-    transition: all var(--transition-speed) ease;
-}
-
-.sidebar.active~.home-section nav {
-    left: var(--sidebar-width-collapsed);
-    width: calc(100% - var(--sidebar-width-collapsed));
 }
 
 .home-section nav .sidebar-button {
@@ -314,11 +311,15 @@ nav .profile-details i {
 
 .home-section .home-content {
     position: relative;
-    padding-top: 104px;
+    padding: 100px 40px 40px;
     display: flex;
     flex-direction: column;
     align-items: center;
-    padding: 104px 20px 20px 20px;
+    min-height: 100vh;
+    width: 100%;
+    box-sizing: border-box; /* Include padding in width calculation */
+    max-width: 100%; /* Ensure content doesn't exceed container */
+    margin: 0; /* Remove any margins that could cause misalignment */
 }
 
 .home-content .overview-boxes {
@@ -815,18 +816,6 @@ nav .logo:hover img {
 }
 
 
-/* Update Home Content Spacing */
-
-.home-section .home-content {
-    padding: 100px 40px 40px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    min-height: 100vh;
-    width: 100%;
-}
-
-
 /* Empty State */
 
 .empty-state {
@@ -859,13 +848,6 @@ nav .logo:hover img {
     color: var(--text-secondary);
     max-width: 500px;
     margin: 0 auto 20px;
-}
-
-
-/* Fix for nested home-content */
-
-.home-content .home-content {
-    padding-top: 0;
 }
 
 
@@ -930,28 +912,44 @@ nav .logo:hover img {
 
 /* Responsive Media Queries */
 
-@media (max-width: 1240px) {
+@media (max-width: 1200px) {
     .sidebar {
         width: 60px;
     }
+    
     .sidebar.active {
         width: 220px;
     }
+    
     .home-section {
+        margin-left: 60px;
         width: calc(100% - 60px);
-        left: 60px;
     }
-    .sidebar.active~.home-section {
+    
+    .sidebar.active + .home-section {
+        margin-left: 220px;
         width: calc(100% - 220px);
-        left: 220px;
     }
+    
     .home-section nav {
+        left: 0;
+        margin-left: 60px;
         width: calc(100% - 60px);
-        left: 60px;
     }
-    .sidebar.active~.home-section nav {
+    
+    .sidebar.active + .home-section nav {
+        margin-left: 220px;
         width: calc(100% - 220px);
-        left: 220px;
+    }
+}
+
+@media (max-width: 768px) {
+    .home-section .home-content {
+        padding: 90px 20px 20px;
+    }
+    
+    .sidebar-button .dashboard {
+        display: none;
     }
 }
 
@@ -1034,7 +1032,9 @@ nav .logo:hover img {
     padding: 30px;
     margin: 20px 0;
     width: 100%;
-    max-width: 1200px;
+    max-width: 100%; /* Ensure card doesn't exceed container */
+    box-sizing: border-box; /* Include padding in width calculation */
+    overflow: hidden; /* Prevent content from overflowing */
     transition: all var(--transition-speed);
 }
 
@@ -1447,4 +1447,33 @@ nav .logo:hover img {
     left: 0;
     color: var(--primary-color);
     font-weight: bold;
+}
+
+.profile-details .session-timer {
+    background-color: rgba(41, 66, 166, 0.1);
+    padding: 5px 10px;
+    border-radius: 20px;
+    margin-left: 15px;
+    font-size: 14px;
+    color: #2942a6;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.profile-details .session-timer span {
+    color: #2942a6;
+    font-weight: 500;
+}
+
+.profile-details #countdown {
+    color: #2942a6;
+    font-weight: bold;
+    min-width: 30px;
+    text-align: center;
+}
+
+/* Remove the old session timer styles */
+.session-timer {
+    display: none;
 }

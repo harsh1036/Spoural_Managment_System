@@ -1,6 +1,9 @@
 <?php
+// Start output buffering at the very beginning of the file
+ob_start(); 
 require_once(__DIR__ . '/../../tcpdf/tcpdf.php');
 include('../includes/config.php');
+include('../includes/session_management.php');
 
 // Start session if not already started
 if (session_status() === PHP_SESSION_NONE) {
@@ -38,6 +41,8 @@ $dept_name = htmlspecialchars($ulsc_user['dept_name']);
 $ulsc_name = htmlspecialchars($ulsc_user['ulsc_name']);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+     // Clear any buffered output
+     ob_clean();
     $selected_event_id = isset($_POST['selected_event_pdf']) ? intval($_POST['selected_event_pdf']) : null;
     $download_all = isset($_POST['download_all_data']);
     
@@ -56,7 +61,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             // Date created (left side)
             date_default_timezone_set('Asia/Kolkata');
-            $this->Cell(0, 10, 'Created: '.date('Y-m-d H:i:s'), 0, false, 'L', 0, '', 0, false, 'T', 'M');
+            $this->Cell(0, 10, 'Downloaded on : '.date('Y-m-d H:i:s'), 0, false, 'L', 0, '', 0, false, 'T', 'M');
             
             // Page number (right side)
             $this->Cell(0, 10, 'Page '.$this->getAliasNumPage().' of '.$this->getAliasNbPages(), 0, false, 'R', 0, '', 0, false, 'T', 'M');
@@ -88,12 +93,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Add department name and ULSC name
     $pdf->SetFont('helvetica', 'B', 14);
     $pdf->Cell(0, 10, 'Department: ' . $dept_name, 0, 1, 'R');
-    $pdf->Cell(0, 10, 'ULSC: ' . $ulsc_name, 0, 1, 'R');
+    $pdf->Cell(0, 10, 'Downloaded By : ' . $ulsc_name, 0, 1, 'R');
 
     $pdf->Ln(20);
 
+    // Get all ULSC members from the same department for signature section
+    $ulscQuery = "SELECT ulsc_id, ulsc_name 
+                  FROM ulsc 
+                  WHERE dept_id = :dept_id 
+                  ORDER BY ulsc_name";
+    $ulscStmt = $dbh->prepare($ulscQuery);
+    $ulscStmt->bindParam(':dept_id', $department_id, PDO::PARAM_INT);
+    $ulscStmt->execute();
+    $ulscMembers = $ulscStmt->fetchAll(PDO::FETCH_ASSOC);
+
     if ($download_all) {
-        // Get all sports events
+        // Get all Sports events
         $eventQuery = "SELECT id, event_name FROM events WHERE event_type = 'Sports' ORDER BY event_name";
         $eventResult = $dbh->prepare($eventQuery);
         $eventResult->execute();
@@ -118,6 +133,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         die("Invalid request.");
     }
 
+    // Add signatures section at the end
+    addSignatureSection($pdf, $ulscMembers);
+
     // Output the PDF
     $pdf->Output($dept_name . '_Sports_event_participants.pdf', 'D');
     exit();
@@ -125,9 +143,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 function generateEventTable($pdf, $dbh, $eventId, $eventName, $departmentId, $ulscName) {
     try {
-        // Get participants FILTERED BY DEPARTMENT
-        $participantQuery = "SELECT p.student_id 
+        // Get participants FILTERED BY DEPARTMENT - including student names
+        $participantQuery = "SELECT p.student_id, s.student_name 
                            FROM participants p 
+                           LEFT JOIN student s ON p.student_id = s.student_id
                            WHERE p.event_id = :event_id
                            AND p.dept_id = :dept_id
                            ORDER BY p.student_id";
@@ -169,28 +188,37 @@ function generateEventTable($pdf, $dbh, $eventId, $eventName, $departmentId, $ul
                     <th style="width:40%;text-align:center;padding:12px;border:1px solid #ddd;">ULSC NAME</th>
                     <th style="width:40%;text-align:center;padding:12px;border:1px solid #ddd;">EVENT NAME</th>
                     <th style="width:20%;text-align:center;padding:12px;border:1px solid #ddd;">TOTAL PARTICIPANTS</th>
-                   </tr>
-                   <tr class="subheader">
+                   </tr>';
+                   
+        // Show only logged-in ULSC name instead of all ULSC names
+        $table .= '<tr class="subheader">
                     <td style="text-align:center;padding:12px;border:1px solid #ddd;">' . htmlspecialchars($ulscName) . '</td>
                     <td style="text-align:center;padding:12px;border:1px solid #ddd;">' . htmlspecialchars($eventName) . '</td>
                     <td style="text-align:center;padding:12px;border:1px solid #ddd;">' . $participantCount . '</td>
                    </tr>';
 
         if (!empty($participants)) {
-            // Student IDs header with normal borders
+            // Student IDs and Names header with normal borders
             $table .= '<tr class="header">
-                        <td colspan="3" style="text-align:center;padding:12px;border:1px solid #ddd;">
-                            STUDENT IDS
+                        <td style="text-align:center;padding:12px;border:1px solid #ddd;">
+                            STUDENT ID
+                        </td>
+                        <td colspan="2" style="text-align:center;padding:12px;border:1px solid #ddd;">
+                            STUDENT NAME
                         </td>
                        </tr>';
             
-            // Student IDs list with normal borders
+            // Student IDs and Names list with normal borders
             $rowCount = 0;
             foreach ($participants as $student) {
                 $bgColor = ($rowCount++ % 2 == 0) ? '#ffffff' : '#f5f9ff';
+                $studentName = isset($student['student_name']) ? htmlspecialchars($student['student_name']) : 'Name not found';
                 $table .= '<tr>
-                            <td colspan="3" style="text-align:center;padding:10px;border:1px solid #ddd;background-color:'.$bgColor.';">
+                            <td style="text-align:center;padding:10px;border:1px solid #ddd;background-color:'.$bgColor.';">
                                 ' . htmlspecialchars($student['student_id']) . '
+                            </td>
+                            <td colspan="2" style="text-align:center;padding:10px;border:1px solid #ddd;background-color:'.$bgColor.';">
+                                ' . $studentName . '
                             </td>
                            </tr>';
             }
@@ -203,6 +231,7 @@ function generateEventTable($pdf, $dbh, $eventId, $eventName, $departmentId, $ul
         }
 
         $table .= '</table>';
+        
         $pdf->writeHTML($table, true, false, true, false, '');
         $pdf->Ln(15);
 
@@ -210,4 +239,63 @@ function generateEventTable($pdf, $dbh, $eventId, $eventName, $departmentId, $ul
         error_log("Database error: " . $e->getMessage());
         die("An error occurred while generating the report. Please try again later.");
     }
+}
+
+function addSignatureSection($pdf, $ulscMembers) {
+    // Add a new page for signatures if needed
+    if ($pdf->getY() > $pdf->getPageHeight() - 100) {
+        $pdf->AddPage();
+    } else {
+        $pdf->Ln(20);
+    }
+    
+    // Add signature section title
+    $pdf->SetFont('helvetica', 'B', 12);
+    $pdf->Cell(0, 10, 'ULSC Members Signatures', 0, 1, 'L');
+    $pdf->Ln(5);
+    
+    // Calculate columns and rows based on number of ULSC members
+    $columns = 2; // Use 2 columns for signatures
+    $rowsPerPage = 5; // Maximum number of rows per page
+    $columnWidth = $pdf->getPageWidth() / $columns - 20; // Adjust width for margins
+    
+    $pdf->SetFont('helvetica', '', 10);
+    
+    $count = 0;
+    $startX = 10;
+    $startY = $pdf->getY();
+    $lineGap = 25; // Space between signature lines
+    
+    foreach ($ulscMembers as $member) {
+        // Calculate position
+        $col = $count % $columns;
+        $row = floor($count / $columns);
+        
+        // Check if we need a new page
+        if ($row >= $rowsPerPage) {
+            $pdf->AddPage();
+            $count = 0;
+            $col = 0;
+            $row = 0;
+            $startY = $pdf->getY();
+        }
+        
+        $x = $startX + ($col * $columnWidth);
+        $y = $startY + ($row * $lineGap);
+        
+        // Position cursor for signature
+        $pdf->SetXY($x, $y);
+        
+        // Draw signature line
+        $pdf->Line($x, $y + 10, $x + ($columnWidth - 20), $y + 10);
+        
+        // Add ULSC name
+        $pdf->SetXY($x, $y);
+        $pdf->Cell($columnWidth - 20, 10, htmlspecialchars($member['ulsc_name']) . ':', 0, 1, 'L');
+        
+        $count++;
+    }
+    
+    // Return to main flow
+    $pdf->SetY($startY + ($rowsPerPage * $lineGap) + 10);
 }

@@ -1,4 +1,5 @@
 <?php
+include('includes/session_management.php');
 // Start the session
 session_start();
 
