@@ -1,6 +1,7 @@
 <?php
 require_once(__DIR__ . '/../../tcpdf/tcpdf.php');
 include('../includes/config.php');
+include('../includes/session_management.php');
 
 // Start session if not already started
 if (session_status() === PHP_SESSION_NONE) {

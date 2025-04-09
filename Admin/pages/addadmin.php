@@ -1,6 +1,5 @@
 <?php
-
-session_start();
+include('../includes/session_management.php');
 include('../includes/config.php');
 
 // Check if user is logged in, else redirect to login

@@ -1,4 +1,5 @@
 <?php
+include('../includes/session_management.php');
 session_start();
 include('../includes/config.php');
 require 'SimpleXLSXGen.php'; // Ensure this file exists

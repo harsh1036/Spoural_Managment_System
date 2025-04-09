@@ -29,12 +29,36 @@ if (isset($_GET['logout'])) {
         }
 
         .home-section {
+            position: relative;
+            background: #f5f5f5;
+            min-height: 100vh;
             left: 260px;
             width: calc(100% - 260px);
             transition: all 0.5s ease;
         }
 
-        .home-section.active {
+        .sidebar.active ~ .home-section {
+            left: 60px;
+            width: calc(100% - 60px);
+        }
+
+        .home-section nav {
+            display: flex;
+            justify-content: space-between;
+            height: 60px;
+            background: #fff;
+            display: flex;
+            align-items: center;
+            position: fixed;
+            width: calc(100% - 260px);
+            left: 260px;
+            z-index: 10;
+            padding: 0 20px;
+            box-shadow: 0 1px 1px rgba(0, 0, 0, 0.1);
+            transition: all 0.5s ease;
+        }
+
+        .sidebar.active ~ .home-section nav {
             left: 60px;
             width: calc(100% - 60px);
         }
@@ -53,9 +77,19 @@ if (isset($_GET['logout'])) {
                 width: calc(100% - 60px);
             }
 
-            .home-section.active {
+            .sidebar.active ~ .home-section {
                 left: 220px;
                 width: calc(100% - 220px);
+            }
+
+            .home-section nav {
+                width: calc(100% - 60px);
+                left: 60px;
+            }
+
+            .sidebar.active ~ .home-section nav {
+                width: calc(100% - 220px);
+                left: 220px;
             }
         }
 
@@ -211,6 +245,30 @@ if (isset($_GET['logout'])) {
         .home-section nav .profile-details i {
             font-size: 25px;
             color: #333;
+        }
+
+        .home-section nav .profile-details .session-timer {
+            background-color: rgba(41, 66, 166, 0.1);
+            padding: 5px 10px;
+            border-radius: 20px;
+            margin-right: 15px;
+            font-size: 14px;
+            color: #2942a6;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .home-section nav .profile-details .session-timer span {
+            color: #2942a6;
+            font-weight: 500;
+        }
+
+        .home-section nav .profile-details #countdown {
+            color: #2942a6;
+            font-weight: bold;
+            min-width: 30px;
+            text-align: center;
         }
 
         .home-section nav .profile-details .dropdown-menu {
@@ -405,6 +463,10 @@ if (isset($_GET['logout'])) {
             <div class="profile-details" id="profileDropdown">
                 <img src="https://t4.ftcdn.net/jpg/00/97/00/09/360_F_97000908_wwH2goIihwrMoeV9QF3BW6HtpsVFaNVM.jpg" alt="profile">
                 <span class="admin_name"><?php echo htmlspecialchars($admin_username); ?></span>
+                <div class="session-timer">
+                    <span>Session: </span>
+                    <span id="countdown"><?php echo $remaining_time; ?></span>s
+                </div>
                 <i class='bx bx-chevron-down'></i>
 
                 <div class="dropdown-menu" id="profileMenu">
@@ -421,125 +483,122 @@ if (isset($_GET['logout'])) {
             </div>
         </nav>
         <script>
-             document.addEventListener('DOMContentLoaded', function() {
-            // Profile dropdown functionality
-            const profileDetails = document.getElementById('profileDropdown');
-            const profileMenu = document.getElementById('profileMenu');
-
-            // Toggle dropdown menu
-            profileDetails.addEventListener('click', function(e) {
-                e.stopPropagation();
-                profileMenu.classList.toggle('active');
-            });
-
-            // Close dropdown when clicking elsewhere
-            document.addEventListener('click', function() {
-                profileMenu.classList.remove('active');
-            });
-
-            // Sidebar toggle functionality
-            const sidebar = document.querySelector(".sidebar");
-            const sidebarBtn = document.querySelector(".sidebarBtn");
-            const homeSection = document.querySelector(".home-section");
-
-            sidebarBtn.addEventListener("click", function() {
-                sidebar.classList.toggle("active");
-                homeSection.classList.toggle("active");
-
-                // Update button icon based on sidebar state
-                if (sidebar.classList.contains("active")) {
-                    sidebarBtn.classList.replace("bx-menu", "bx-menu-alt-right");
+            document.addEventListener('DOMContentLoaded', function() {
+                // Profile dropdown functionality
+                const profileDetails = document.getElementById('profileDropdown');
+                const profileMenu = document.getElementById('profileMenu');
+                
+                if (profileDetails && profileMenu) {
+                    profileDetails.addEventListener('click', function(e) {
+                        e.stopPropagation();
+                        profileMenu.classList.toggle('active');
+                    });
+                    
+                    document.addEventListener('click', function() {
+                        profileMenu.classList.remove('active');
+                    });
+                }
+                
+                // Sidebar toggle functionality - using the same implementation as ULSC
+                const sidebar = document.querySelector(".sidebar");
+                const sidebarBtn = document.querySelector(".sidebarBtn");
+                const homeSection = document.querySelector(".home-section");
+                
+                // Define sidebar states
+                const EXPANDED = {
+                    sidebarWidth: '260px',
+                    contentMargin: '260px',
+                    contentWidth: 'calc(100% - 260px)'
+                };
+                
+                const COLLAPSED = {
+                    sidebarWidth: '60px',
+                    contentMargin: '60px',
+                    contentWidth: 'calc(100% - 60px)'
+                };
+                
+                function setSidebarState(state) {
+                    // Apply to sidebar with a small delay to ensure smooth transition
+                    sidebar.style.width = state.sidebarWidth;
+                    
+                    // Apply to content area - fix position to prevent cutoff
+                    homeSection.style.left = state.contentMargin;
+                    homeSection.style.width = state.contentWidth;
+                    
+                    // Apply to navbar
+                    const nav = homeSection.querySelector('nav');
+                    if (nav) {
+                        nav.style.left = state.contentMargin;
+                        nav.style.width = state.contentWidth;
+                        
+                        // Ensure navbar elements maintain proper position
+                        const navElements = nav.querySelectorAll('div');
+                        navElements.forEach(el => {
+                            el.style.transition = 'all 0.5s ease';
+                        });
+                    }
+                    
+                    // Toggle sidebar texts and icons visibility
+                    const logoName = document.querySelector('.logo_name');
+                    const linkNames = document.querySelectorAll('.links_name');
+                    
+                    if (state === COLLAPSED) {
+                        if (logoName) logoName.style.display = 'none';
+                        linkNames.forEach(link => link.style.display = 'none');
+                        sidebarBtn.className = 'bx bx-menu-alt-right sidebarBtn';
+                    } else {
+                        if (logoName) logoName.style.display = 'block';
+                        linkNames.forEach(link => link.style.display = 'block');
+                        sidebarBtn.className = 'bx bx-menu sidebarBtn';
+                    }
+                }
+                
+                if (sidebar && sidebarBtn && homeSection) {
+                    // Set initial state
+                    let isCollapsed = false;
+                    setSidebarState(EXPANDED);
+                    
+                    // Toggle sidebar on button click
+                    sidebarBtn.addEventListener('click', function() {
+                        console.log('Sidebar button clicked');
+                        isCollapsed = !isCollapsed;
+                        setSidebarState(isCollapsed ? COLLAPSED : EXPANDED);
+                        console.log('Sidebar state changed to:', isCollapsed ? 'collapsed' : 'expanded');
+                    });
                 } else {
-                    sidebarBtn.classList.replace("bx-menu-alt-right", "bx-menu");
+                    console.error('Required elements not found:', { sidebar, sidebarBtn, homeSection });
+                }
+                
+                // Session countdown timer
+                let timeLeft = <?php echo $remaining_time; ?>;
+                const countdownElement = document.getElementById('countdown');
+                
+                if (countdownElement) {
+                    function updateCountdown() {
+                        timeLeft--;
+                        
+                        // Calculate minutes and seconds
+                        const minutes = Math.floor(timeLeft / 60);
+                        const seconds = timeLeft % 60;
+                        
+                        // Format time as MM:SS
+                        countdownElement.textContent = `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+                        
+                        if (timeLeft <= 10) {
+                            countdownElement.style.color = '#ff0000';
+                            countdownElement.style.fontWeight = 'bold';
+                        }
+                        
+                        if (timeLeft <= 0) {
+                            // Session expired, redirect to login
+                            window.location.href = '../index.php?error=session_expired';
+                        }
+                    }
+                    
+                    // Update countdown every second
+                    setInterval(updateCountdown, 1000);
                 }
             });
-        });
-        document.addEventListener('DOMContentLoaded', function() {
-    // Sidebar toggle functionality
-    const sidebar = document.querySelector(".sidebar");
-    const sidebarBtn = document.querySelector(".sidebarBtn");
-    const homeSection = document.querySelector(".home-section");
-
-    sidebarBtn.addEventListener("click", function() {
-        sidebar.classList.toggle("active");
-        homeSection.classList.toggle("active");
-
-        // Update button icon based on sidebar state
-        if (sidebar.classList.contains("active")) {
-            sidebarBtn.classList.replace("bx-menu", "bx-menu-alt-right");
-        } else {
-            sidebarBtn.classList.replace("bx-menu-alt-right", "bx-menu");
-        }
-    });
-});
-
-            // // new 
-            // document.addEventListener('DOMContentLoaded', function() {
-            //     // Profile dropdown functionality
-            //     const profileDetails = document.getElementById('profileDropdown');
-            //     const profileMenu = document.getElementById('profileMenu');
-
-            //     // Toggle dropdown menu
-            //     profileDetails.addEventListener('click', function(e) {
-            //         e.stopPropagation();
-            //         profileMenu.classList.toggle('active');
-            //     });
-
-            //     // Close dropdown when clicking elsewhere
-            //     document.addEventListener('click', function() {
-            //         profileMenu.classList.remove('active');
-            //     });
-
-            //     // Sidebar toggle functionality
-            //     const sidebar = document.querySelector(".sidebar");
-            //     const sidebarBtn = document.querySelector(".sidebarBtn");
-            //     const homeSection = document.querySelector(".home-section");
-
-            //     sidebarBtn.addEventListener("click", function() {
-            //         sidebar.classList.toggle("active");
-            //         homeSection.classList.toggle("active");
-
-            //         // Update button icon based on sidebar state
-            //         if (sidebar.classList.contains("active")) {
-            //             sidebarBtn.classList.replace("bx-menu", "bx-menu-alt-right");
-            //         } else {
-            //             sidebarBtn.classList.replace("bx-menu-alt-right", "bx-menu");
-            //         }
-            //     });
-            // });
-            // //end
-
-            // document.addEventListener('DOMContentLoaded', function() {
-            //     // Profile dropdown functionality
-            //     const profileDetails = document.getElementById('profileDropdown');
-            //     const profileMenu = document.getElementById('profileMenu');
-
-            //     // Toggle dropdown menu
-            //     profileDetails.addEventListener('click', function(e) {
-            //         e.stopPropagation();
-            //         profileMenu.classList.toggle('active');
-            //     });
-
-            //     // Close dropdown when clicking elsewhere
-            //     document.addEventListener('click', function() {
-            //         profileMenu.classList.remove('active');
-            //     });
-
-            //     // Sidebar toggle functionality
-            //     const sidebar = document.querySelector(".sidebar");
-            //     const sidebarBtn = document.querySelector(".sidebarBtn");
-
-            //     sidebarBtn.addEventListener("click", function() {
-            //         sidebar.classList.toggle("active");
-
-            //         // Update button icon based on sidebar state
-            //         if (sidebar.classList.contains("active")) {
-            //             sidebarBtn.classList.replace("bx-menu", "bx-menu-alt-right");
-            //         } else {
-            //             sidebarBtn.classList.replace("bx-menu-alt-right", "bx-menu");
-            //         }
-            //     });
-            // });
         </script>
         <?php
         // Footer is now loaded at the bottom of each page instead of here

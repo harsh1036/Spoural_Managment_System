@@ -1,5 +1,5 @@
 <?php
-session_start();
+include('includes/session_management.php');
 include('includes/config.php');
 
 
@@ -19,6 +19,8 @@ if (isset($_POST['login'])) {
     if ($user) {
         $_SESSION['login'] = $user['username']; // Store username dynamically
         $_SESSION['admin_id'] = $user['id']; // Store admin ID
+        $_SESSION['session_start'] = time();
+        $_SESSION['session_timeout'] = 1800; // 30 minutes
         echo "<script>window.location.href='pages/admindashboard.php';</script>";
         exit();
     } else {
