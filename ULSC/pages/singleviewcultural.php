@@ -229,7 +229,7 @@ if (!empty($selected_event_id)) {
                         align-items: center; 
                         gap: 8px; 
                         font-size: 14px;
-                        <?= empty($selected_event_id) ? 'opacity: 0.5; pointer-events: none;' : '' ?>
+                        <?= empty($selected_event_id) || empty($participants) ? 'opacity: 0.5; pointer-events: none;' : '' ?>
                     ">
                     <img src="../assets/images/pdf-icon.png" alt="PDF Icon" 
                         style="width: 20px; height: 20px;">
