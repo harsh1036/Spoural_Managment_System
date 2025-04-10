@@ -39,12 +39,14 @@ $all_events = $query->fetchAll(PDO::FETCH_ASSOC);
 
 // Fetch participants for cultural events FILTERED BY DEPARTMENT
 $query = $dbh->prepare("
-    SELECT p.id, p.student_id, d.dept_name, e.event_name 
+    SELECT p.id, p.student_id, s.student_name, d.dept_name, e.event_name 
     FROM participants p 
     JOIN departments d ON p.dept_id = d.dept_id 
     JOIN events e ON p.event_id = e.id
+    LEFT JOIN student s ON p.student_id = s.student_id
     WHERE e.event_type = 'Cultural'
     AND p.dept_id = :dept_id
+    ORDER BY e.event_name ASC
 ");
 $query->bindParam(':dept_id', $dept_id, PDO::PARAM_INT);
 $query->execute();
@@ -177,7 +179,7 @@ $participants = $query->fetchAll(PDO::FETCH_ASSOC);
                         <thead>
                             <tr>
                                 <th><center>Participant ID</th>
-                                <th><center>Department Name</th>
+                                <th><center>Student Name</th>
                                 <th><center>Event Name</th>
                             </tr>
                         </thead>
@@ -185,7 +187,7 @@ $participants = $query->fetchAll(PDO::FETCH_ASSOC);
                             <?php foreach ($participants as $participant) { ?>
                                 <tr>
                                     <td><?= htmlspecialchars($participant['student_id']) ?></td>
-                                    <td><?= htmlspecialchars($participant['dept_name']) ?></td>
+                                    <td><?= htmlspecialchars($participant['student_name'] ?? 'Name not found') ?></td>
                                     <td><?= htmlspecialchars($participant['event_name']) ?></td>
                                 </tr>
                             <?php } ?>

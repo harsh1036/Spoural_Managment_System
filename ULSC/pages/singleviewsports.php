@@ -43,12 +43,13 @@ $participants = [];
 $selected_event_name = "";
 
 if (!empty($selected_event_id)) {
-    // Fetch participants with student_id and department name
+    // Fetch participants with student_id and student name
     // Filter by ULSC's department
     $query = $dbh->prepare("
-        SELECT p.id, p.student_id, d.dept_name 
+        SELECT p.id, p.student_id, d.dept_name, s.student_name
         FROM participants p 
         JOIN departments d ON p.dept_id = d.dept_id 
+        LEFT JOIN student s ON p.student_id = s.student_id
         WHERE p.event_id = :event_id
         AND p.dept_id = :dept_id
     ");
@@ -250,7 +251,7 @@ if (!empty($selected_event_id)) {
                     <tr>
                        
                         <th><center>Participant ID</th>
-                        <th><center>Department Name</th>
+                        <th><center>Student Name</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -260,7 +261,7 @@ if (!empty($selected_event_id)) {
                         <tr>
                             
                             <td><?= htmlspecialchars($participant['student_id']) ?></td>
-                            <td><?= htmlspecialchars($participant['dept_name']) ?></td>
+                            <td><?= htmlspecialchars($participant['student_name'] ?? 'Name not found') ?></td>
                         </tr>
                     <?php } ?>
                 </tbody>
