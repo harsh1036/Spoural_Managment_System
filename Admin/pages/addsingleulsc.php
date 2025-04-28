@@ -39,20 +39,23 @@ if (isset($_POST['save_ulsc'])) {
     $ulsc_name = $_POST['ulsc_name'];
     $dept_id = $_POST['dept_id'];
     $contact = $_POST['contact'];
-    $random_password = generateRandomPassword(); // Generate a random password
+    $plain_password = "1234"; // Default password
+    $hashed_password = password_hash($plain_password, PASSWORD_BCRYPT); // Hash the password
 
     // Generate email ID
     $email = $ulsc_id . "@charusat.edu.in";
 
     if (!empty($id)) {
+        // For update, don't change password and email
         $sql = "UPDATE ulsc SET ulsc_id = :ulsc_id, ulsc_name = :ulsc_name, dept_id = :dept_id, contact = :contact WHERE id = :id";
         $query = $dbh->prepare($sql);
         $query->bindParam(':id', $id, PDO::PARAM_INT);
     } else {
+        // For new entry, include email and hashed password
         $sql = "INSERT INTO ulsc (ulsc_id, ulsc_name, dept_id, contact, email, password) VALUES (:ulsc_id, :ulsc_name, :dept_id, :contact, :email, :password)";
         $query = $dbh->prepare($sql);
         $query->bindParam(':email', $email, PDO::PARAM_STR);
-        $query->bindParam(':password', $random_password, PDO::PARAM_STR); // Store the plain password
+        $query->bindParam(':password', $hashed_password, PDO::PARAM_STR);
     }
 
     $query->bindParam(':ulsc_id', $ulsc_id, PDO::PARAM_STR);
@@ -61,12 +64,15 @@ if (isset($_POST['save_ulsc'])) {
     $query->bindParam(':contact', $contact, PDO::PARAM_INT);
 
     if ($query->execute()) {
-        if (empty($id) && sendULSCEmail($ulsc_name, $ulsc_id, $random_password)) {
-            echo "<script>alert('ULSC added and email sent successfully!');</script>";
-        } elseif (!empty($id)) {
-            echo "<script>alert('ULSC updated successfully!');</script>";
+        if (empty($id)) {
+            // Only send email for new entries
+            if (sendULSCEmail($ulsc_name, $email, $plain_password)) {
+                echo "<script>alert('ULSC added successfully with email: " . $email . " and default password: 1234');</script>";
+            } else {
+                echo "<script>alert('ULSC added successfully with email: " . $email . " and default password: 1234. Email sending failed.');</script>";
+            }
         } else {
-            echo "<script>alert('ULSC added but email sending failed!');</script>";
+            echo "<script>alert('ULSC updated successfully!');</script>";
         }
         echo "<script>window.location.href='addulsc.php';</script>";
     } else {

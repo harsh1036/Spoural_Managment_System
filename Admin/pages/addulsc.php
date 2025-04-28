@@ -1,6 +1,24 @@
 <?php
 include('../includes/session_management.php');
 include('../includes/config.php');
+include('sendMail.php');
+
+// Enable error reporting
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
+
+// Check database connection
+try {
+    $dbh->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    error_log("Database connected successfully");
+} catch(PDOException $e) {
+    error_log("Connection failed: " . $e->getMessage());
+    die("Connection failed: " . $e->getMessage());
+}
+
+// Initialize variables
+$id = $ulsc_id = $ulsc_name = $dept_id = $contact = "";
+$message = "";
 
 // Check if user is logged in, else redirect to login
 if (!isset($_SESSION['login'])) {
@@ -10,9 +28,6 @@ if (!isset($_SESSION['login'])) {
 
 // Fetch session data
 $admin_username = $_SESSION['login'];
-
-// Initialize variables
-$id = $ulsc_id = $ulsc_name = $dept_id = $contact = "";
 
 // Handle delete operation
 if (isset($_GET['delete_id'])) {
@@ -55,36 +70,89 @@ if (isset($_GET['edit_id'])) {
 
 // Handle form submission
 if (isset($_POST['save_ulsc'])) {
-    $ulsc_id = $_POST['ulsc_id'];
-    $ulsc_name = $_POST['ulsc_name'];
-    $dept_id = $_POST['dept_id'];
-    $contact = $_POST['contact'];
-    $id = $_POST['id'];
-
+    error_log("Form submitted. POST data: " . print_r($_POST, true));
+    
     try {
+        // Get form data
+        $ulsc_id = trim($_POST['ulsc_id']);
+        $ulsc_name = trim($_POST['ulsc_name']);
+        $dept_id = trim($_POST['dept_id']);
+        $contact = trim($_POST['contact']);
+        $id = isset($_POST['id']) ? trim($_POST['id']) : '';
+
+        // Validate form data
+        if (empty($ulsc_id) || empty($ulsc_name) || empty($dept_id) || empty($contact)) {
+            throw new Exception("All fields are required");
+        }
+
+        // Generate email and password
+        $email = $ulsc_id . "@charusat.edu.in";
+        $plain_password = "1234";
+        $hashed_password = password_hash($plain_password, PASSWORD_BCRYPT);
+
+        // Begin transaction
+        $dbh->beginTransaction();
+
         if (!empty($id)) {
             // Update existing ULSC
-            $sql = "UPDATE ulsc SET ulsc_id = :ulsc_id, ulsc_name = :name, dept_id = :dept_id, contact = :contact WHERE id = :id";
+            $sql = "UPDATE ulsc SET ulsc_id = :ulsc_id, ulsc_name = :ulsc_name, dept_id = :dept_id, contact = :contact WHERE id = :id";
+            error_log("Update SQL: " . $sql);
+            
             $stmt = $dbh->prepare($sql);
             $stmt->bindParam(':id', $id, PDO::PARAM_INT);
+            $stmt->bindParam(':ulsc_id', $ulsc_id, PDO::PARAM_STR);
+            $stmt->bindParam(':ulsc_name', $ulsc_name, PDO::PARAM_STR);
+            $stmt->bindParam(':dept_id', $dept_id, PDO::PARAM_INT);
+            $stmt->bindParam(':contact', $contact, PDO::PARAM_STR);
         } else {
+            // Check if ULSC ID already exists
+            $check_sql = "SELECT COUNT(*) FROM ulsc WHERE ulsc_id = :ulsc_id";
+            $check_stmt = $dbh->prepare($check_sql);
+            $check_stmt->bindParam(':ulsc_id', $ulsc_id, PDO::PARAM_STR);
+            $check_stmt->execute();
+            
+            if ($check_stmt->fetchColumn() > 0) {
+                throw new Exception("ULSC ID already exists");
+            }
+
             // Insert new ULSC
-            $sql = "INSERT INTO ulsc (ulsc_id, ulsc_name, dept_id, contact) VALUES (:ulsc_id, :name, :dept_id, :contact)";
+            $sql = "INSERT INTO ulsc (ulsc_id, ulsc_name, dept_id, contact, email, password) VALUES (:ulsc_id, :ulsc_name, :dept_id, :contact, :email, :password)";
+            error_log("Insert SQL: " . $sql);
+            
             $stmt = $dbh->prepare($sql);
+            $stmt->bindParam(':ulsc_id', $ulsc_id, PDO::PARAM_STR);
+            $stmt->bindParam(':ulsc_name', $ulsc_name, PDO::PARAM_STR);
+            $stmt->bindParam(':dept_id', $dept_id, PDO::PARAM_INT);
+            $stmt->bindParam(':contact', $contact, PDO::PARAM_STR);
+            $stmt->bindParam(':email', $email, PDO::PARAM_STR);
+            $stmt->bindParam(':password', $hashed_password, PDO::PARAM_STR);
         }
 
-        $stmt->bindParam(':ulsc_id', $ulsc_id, PDO::PARAM_STR);
-        $stmt->bindParam(':name', $ulsc_name, PDO::PARAM_STR);
-        $stmt->bindParam(':dept_id', $dept_id, PDO::PARAM_INT);
-        $stmt->bindParam(':contact', $contact, PDO::PARAM_STR);
-
-        if ($stmt->execute()) {
-            echo "<script>alert('ULSC saved successfully!'); window.location.href='addulsc.php';</script>";
+        // Execute the query
+        $result = $stmt->execute();
+        error_log("Query execution result: " . ($result ? "Success" : "Failed"));
+        
+        if ($result) {
+            $dbh->commit();
+            if (empty($id)) {
+                // Send email for new entries
+                if (sendULSCEmail($ulsc_name, $email, $plain_password)) {
+                    $message = "ULSC added successfully with email: $email and default password: 1234";
+                } else {
+                    $message = "ULSC added successfully with email: $email and default password: 1234. Email sending failed.";
+                }
+            } else {
+                $message = "ULSC updated successfully!";
+            }
+            echo "<script>alert('$message'); window.location.href='addulsc.php';</script>";
         } else {
-            echo "<script>alert('Error saving ULSC!');</script>";
+            throw new Exception("Error executing query: " . print_r($stmt->errorInfo(), true));
         }
-    } catch (PDOException $e) {
-        echo "<script>alert('Database error: " . $e->getMessage() . "');</script>";
+
+    } catch (Exception $e) {
+        $dbh->rollBack();
+        error_log("Error: " . $e->getMessage());
+        echo "<script>alert('Error: " . addslashes($e->getMessage()) . "');</script>";
     }
 }
 
@@ -197,36 +265,45 @@ if (isset($_POST['save_ulsc'])) {
                 </div>
                 <div class="main-content">
                     <section class="ulsc-form">
-                        <h3><?= isset($_GET['edit_id']) ? 'Edit ULSC' : 'New ULSC' ?></h3>
-                        <form method="post" action="addulsc.php" class="ulsc-input-form">
-                            <input type="hidden" name="id" value="<?= isset($_GET['edit_id']) ? htmlspecialchars($_GET['edit_id']) : '' ?>">
+                        <h3><?= empty($id) ? 'New ULSC' : 'Edit ULSC' ?></h3>
+                        <form method="post" class="ulsc-input-form">
+                            <input type="hidden" name="id" value="<?= htmlspecialchars($id) ?>">
+                            
+                            <div class="form-group">
+                                <label>ULSC ID:</label>
+                                <input type="text" name="ulsc_id" class="input-field" value="<?= htmlspecialchars($ulsc_id) ?>" required>
+                            </div>
 
-                            <label>ULSC ID:</label>
-                            <input type="text" name="ulsc_id" class="input-field" value="<?= isset($ulsc_id) ? htmlspecialchars($ulsc_id) : '' ?>" required>
+                            <div class="form-group">
+                                <label>ULSC Name:</label>
+                                <input type="text" name="ulsc_name" class="input-field" value="<?= htmlspecialchars($ulsc_name) ?>" required>
+                            </div>
 
-                            <label>ULSC Name:</label>
-                            <input type="text" name="ulsc_name" class="input-field" value="<?= isset($ulsc_name) ? htmlspecialchars($ulsc_name) : '' ?>" required>
+                            <div class="form-group">
+                                <label>Department:</label>
+                                <select name="dept_id" class="input-field" required>
+                                    <option value="">Select Department</option>
+                                    <?php 
+                                    $dept_sql = "SELECT dept_id, dept_name FROM departments";
+                                    $dept_stmt = $dbh->prepare($dept_sql);
+                                    $dept_stmt->execute();
+                                    while ($dept = $dept_stmt->fetch(PDO::FETCH_ASSOC)): 
+                                    ?>
+                                        <option value="<?= $dept['dept_id'] ?>" <?= ($dept_id == $dept['dept_id']) ? 'selected' : '' ?>>
+                                            <?= htmlspecialchars($dept['dept_name']) ?>
+                                        </option>
+                                    <?php endwhile; ?>
+                                </select>
+                            </div>
 
-                            <label>Department:</label>
-                            <select name="dept_id" class="input-field" required>
-                                <option value="">Select Department</option>
-                                <?php 
-                                $sql = "SELECT dept_id, dept_name FROM departments";
-                                $query = $dbh->prepare($sql);
-                                $query->execute();
-                                $departments = $query->fetchAll(PDO::FETCH_ASSOC);
-                                foreach ($departments as $dept): 
-                                ?>
-                                    <option value="<?= $dept['dept_id'] ?>" <?= isset($dept_id) && $dept_id == $dept['dept_id'] ? 'selected' : '' ?>>
-                                        <?= htmlspecialchars($dept['dept_name']) ?>
-                                    </option>
-                                <?php endforeach; ?>
-                            </select>
+                            <div class="form-group">
+                                <label>Contact Number:</label>
+                                <input type="number" name="contact" class="input-field" value="<?= htmlspecialchars($contact) ?>" required>
+                            </div>
 
-                            <label>Contact Number:</label>
-                            <input type="number" name="contact" class="input-field" value="<?= isset($contact) ? htmlspecialchars($contact) : '' ?>" required>
-
-                            <button type="submit" name="save_ulsc" class="submit-button"><?= isset($_GET['edit_id']) ? 'Update' : 'Submit' ?></button>
+                            <button type="submit" name="save_ulsc" class="submit-button">
+                                <?= empty($id) ? 'Submit' : 'Update' ?>
+                            </button>
                         </form>
                     </section>
                     <br><br>
@@ -260,16 +337,21 @@ if (isset($_POST['save_ulsc'])) {
                                     <td><?= htmlspecialchars($row['dept_name']) ?></td>
                                     <td><?= htmlspecialchars($row['contact']) ?></td>
                                     <td>
-                                        <a href="#" class="edit-ulsc" data-id="<?= $row['id'] ?>" data-ulsc-id="<?= htmlspecialchars($row['ulsc_id']) ?>" 
-                                           data-ulsc-name="<?= htmlspecialchars($row['ulsc_name']) ?>" 
-                                           data-dept-id="<?= $row['dept_id'] ?>" 
-                                           data-contact="<?= htmlspecialchars($row['contact']) ?>">
-                                            <img src="../assets/images/edit.jpg" alt="Edit" width="20" height="20">
-                                        </a>
+                                        <button type="button" 
+                                                class="edit-ulsc btn btn-sm btn-primary"
+                                                data-id="<?= $row['id'] ?>"
+                                                data-ulsc-id="<?= htmlspecialchars($row['ulsc_id']) ?>"
+                                                data-ulsc-name="<?= htmlspecialchars($row['ulsc_name']) ?>"
+                                                data-dept-id="<?= $row['dept_id'] ?>"
+                                                data-contact="<?= htmlspecialchars($row['contact']) ?>">
+                                            <i class='bx bx-edit'></i> Edit
+                                        </button>
                                     </td>
                                     <td>
-                                        <a href="addulsc.php?delete_id=<?= $row['id'] ?>" onclick="return confirm('Are you sure?')">
-                                            <img src="../assets/images/delete.jpg" alt="Delete" width="20" height="20">
+                                        <a href="addulsc.php?delete_id=<?= $row['id'] ?>" 
+                                           class="btn btn-sm btn-danger"
+                                           onclick="return confirm('Are you sure you want to delete this ULSC member?')">
+                                            <i class='bx bx-trash'></i> Delete
                                         </a>
                                     </td>
                                 </tr>

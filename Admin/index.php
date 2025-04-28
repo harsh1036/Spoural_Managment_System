@@ -453,7 +453,7 @@ if (isset($_POST['login'])) {
                                         
                                     </div>
                                     <div class="reset-pass">
-                                            <a href="#">Forgot your password?</a>
+                                    <a href="Excel/resetpassword1.php">Forgot your password?</a>
                                         </div>
                                 </div>
                                 <!-- <div class="field field-checkbox padding-bottom--24 flex-flex align-center">

@@ -229,7 +229,8 @@ if (isset($_POST['import'])) {
                                     <th>Name</th>
                                     <th>Contact</th>
                                     <th>Department</th>
-                                    <th>Actions</th>
+                                    <th>Edit</th>
+                                    <th>Remove</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -257,7 +258,7 @@ if (isset($_POST['import'])) {
                                                     data-contact="<?= htmlspecialchars($student['contact'] ?? '') ?>"
                                                     data-dept="<?= htmlspecialchars($student['dept_id']) ?>">
                                                 <i class='bx bx-edit'></i> Edit
-                                            </button>
+                                            </button></td><td>
                                             <a href="addstudents.php?delete_id=<?= $student['student_id'] ?>" 
                                                class="btn btn-sm btn-danger" 
                                                onclick="return confirm('Are you sure you want to delete this student?')">
