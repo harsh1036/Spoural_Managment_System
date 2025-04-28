@@ -86,7 +86,7 @@ if (isset($_GET['logout'])) {
                 <i class='bx bx-chevron-down'></i>
                 
                 <div class="dropdown-menu" id="profileMenu">
-                    <a href="#" class="dropdown-item">
+                    <a href="profile.php" class="dropdown-item">
                         <i class='bx bx-user-circle'></i> Profile
                     </a>
                     <a href="?logout=true" class="dropdown-item">
