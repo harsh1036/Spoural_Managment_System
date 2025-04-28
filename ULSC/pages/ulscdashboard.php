@@ -158,7 +158,7 @@ $registered_events = $registeredEventQuery->fetch(PDO::FETCH_ASSOC)['total'];
             </div>
             
             <!-- Recent Entries -->
-            <div class="content-card">
+            <!-- <div class="content-card">
                 <div class="content-header">
                     <h2><i class='bx bx-list-ul'></i> Quick Access</h2>
                 </div>
@@ -184,7 +184,7 @@ $registered_events = $registeredEventQuery->fetch(PDO::FETCH_ASSOC)['total'];
                         <p>Register participants for cultural events</p>
                     </a>
                 </div>
-            </div>
+            </div> -->
         </div>
     </div>
 

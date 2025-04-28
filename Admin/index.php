@@ -291,19 +291,19 @@ if (isset($_POST['login'])) {
         }
 
         .animationRightLeft {
-            animation: animationRightLeft 2s ease-in-out infinite;
+            animation: none;
         }
 
         .animationLeftRight {
-            animation: animationLeftRight 2s ease-in-out infinite;
+            animation: none;
         }
 
         .tans3s {
-            animation: animationLeftRight 3s ease-in-out infinite;
+            animation: none;
         }
 
         .tans4s {
-            animation: animationLeftRight 4s ease-in-out infinite;
+            animation: none;
         }
 
         @keyframes animationLeftRight {
@@ -311,7 +311,7 @@ if (isset($_POST['login'])) {
                 transform: translateX(0px);
             }
             50% {
-                transform: translateX(1000px);
+                transform: translateX(0px);
             }
             100% {
                 transform: translateX(0px);
@@ -323,7 +323,7 @@ if (isset($_POST['login'])) {
                 transform: translateX(0px);
             }
             50% {
-                transform: translateX(-1000px);
+                transform: translateX(0px);
             }
             100% {
                 transform: translateX(0px);
@@ -439,7 +439,7 @@ if (isset($_POST['login'])) {
                                     <label for="username">Username</label>
                                     <div class="input-container icon-field">
                                         <i class='bx bx-user input-icon'></i>
-                                        <input type="text" id="username" name="username" class="form-control" placeholder="username" required>
+                                        <input type="text" id="username" name="username" class="form-control" placeholder="Enter you Username" required>
                                     </div>
                                 </div>
                                 <div class="field padding-bottom--24">
@@ -456,11 +456,11 @@ if (isset($_POST['login'])) {
                                             <a href="#">Forgot your password?</a>
                                         </div>
                                 </div>
-                                <div class="field field-checkbox padding-bottom--24 flex-flex align-center">
+                                <!-- <div class="field field-checkbox padding-bottom--24 flex-flex align-center">
                                     <label for="checkbox">
                                         <input type="checkbox" name="checkbox" id="checkbox"> Stay signed in
                                     </label>
-                                </div>
+                                </div> -->
                                 <div class="field padding-bottom--24">
                                     <input type="submit" name="login" value="Sign In">
                                 </div>

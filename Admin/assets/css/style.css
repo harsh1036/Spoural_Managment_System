@@ -2553,3 +2553,54 @@ nav .profile-details i {
     color: var(--primary-color);
     font-weight: bold;
 }
+
+.stat-card {
+    background: var(--bg-secondary);
+    border-radius: var(--border-radius);
+    box-shadow: var(--box-shadow);
+    padding: 20px;
+    transition: all var(--transition-speed);
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    overflow: hidden;
+    position: relative;
+}
+
+.stat-card:hover {
+    transform: translateY(-10px);
+    box-shadow: var(--box-shadow-hover);
+}
+
+.stat-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 5px;
+    height: 100%;
+    background: var(--primary-color);
+    transition: all var(--transition-speed);
+}
+
+.stat-card:hover::before {
+    width: 10px;
+}
+
+.stat-card .icon {
+    font-size: 32px;
+    color: var(--text-light);
+    background: linear-gradient(135deg, var(--primary-color), var(--primary-light));
+    height: 55px;
+    width: 55px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 20px;
+    transition: all var(--transition-speed);
+}
+
+.stat-card:hover .icon {
+    transform: scale(1.1) rotate(10deg);
+}

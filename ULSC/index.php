@@ -310,19 +310,19 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
         
         .animationRightLeft {
-            animation: animationRightLeft 2s ease-in-out infinite;
+            animation: none;
         }
         
         .animationLeftRight {
-            animation: animationLeftRight 2s ease-in-out infinite;
+            animation: none;
         }
         
         .tans3s {
-            animation: animationLeftRight 3s ease-in-out infinite;
+            animation: none;
         }
         
         .tans4s {
-            animation: animationLeftRight 4s ease-in-out infinite;
+            animation: none;
         }
         
         @keyframes animationLeftRight {
@@ -330,7 +330,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 transform: translateX(0px);
             }
             50% {
-                transform: translateX(1000px);
+                transform: translateX(0px);
             }
             100% {
                 transform: translateX(0px);
@@ -342,7 +342,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 transform: translateX(0px);
             }
             50% {
-                transform: translateX(-1000px);
+                transform: translateX(0px);
             }
             100% {
                 transform: translateX(0px);
@@ -458,7 +458,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                                     <label for="ulsc_id">ULSC ID</label>
                                     <div class="input-container icon-field">
                                         <i class='bx bx-user input-icon'></i>
-                                        <input type="text" name="ulsc_id" id="ulsc_id" required>
+                                        <input type="text" name="ulsc_id" id="ulsc_id" placeholder="Enter your ULSC ID" required>
                                     </div>
                                 </div>
                                 <div class="field padding-bottom--24">
@@ -468,17 +468,17 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                                     </div>
                                     <div class="input-container icon-field">
                                         <i class='bx bx-lock-alt input-icon'></i>
-                                        <input type="password" name="password" id="password" required>
+                                        <input type="password" name="password" id="password" placeholder="Enter your password" required>
                                     </div>
                                     <div class="reset-pass">
                                             <a href="Excel/resetpassword1.php">Forgot your password?</a>
                                         </div>
                                 </div>
-                                <div class="field field-checkbox padding-bottom--24 flex-flex align-center">
+                                <!-- <div class="field field-checkbox padding-bottom--24 flex-flex align-center">
                                     <label for="checkbox">
                                         <input type="checkbox" name="checkbox" id="checkbox"> Stay signed in
                                     </label>
-                                </div>
+                                </div> -->
                                 <div class="field padding-bottom--24">
                                     <input type="submit" name="login" value="Sign In">
                                 </div>

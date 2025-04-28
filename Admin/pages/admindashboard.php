@@ -121,11 +121,11 @@ try {
             background: var(--bg-secondary);
             border-radius: var(--border-radius);
             box-shadow: var(--box-shadow);
-            padding: 25px;
+            padding: 20px;
             transition: all var(--transition-speed);
             display: flex;
             align-items: center;
-            justify-content: space-between;
+            justify-content: flex-start;
             overflow: hidden;
             position: relative;
         }
@@ -135,10 +135,37 @@ try {
             box-shadow: var(--box-shadow-hover);
         }
         
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 5px;
+            height: 100%;
+            background: var(--primary-color);
+            transition: all var(--transition-speed);
+        }
+        
+        .stat-card:hover::before {
+            width: 10px;
+        }
+        
         .stat-card .icon {
-            font-size: 48px;
-            color: var(--primary-light);
+            font-size: 32px;
+            color: var(--text-light);
+            background: linear-gradient(135deg, var(--primary-color), var(--primary-light));
+            height: 55px;
+            width: 55px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
             margin-right: 20px;
+            transition: all var(--transition-speed);
+        }
+        
+        .stat-card:hover .icon {
+            transform: scale(1.1) rotate(10deg);
         }
         
         .stat-card .stat-info {
@@ -146,13 +173,13 @@ try {
         }
         
         .stat-card .stat-title {
-            font-size: 18px;
+            font-size: 16px;
             color: var(--text-secondary);
             margin-bottom: 5px;
         }
         
         .stat-card .stat-value {
-            font-size: 36px;
+            font-size: 32px;
             font-weight: 700;
             color: var(--text-primary);
         }
@@ -337,11 +364,11 @@ try {
                     <div class="text">Add New Event</div>
                 </a>
                 
-                <a href="schedule_matches.php" class="action-button">
+                <a href="addulsc.php" class="action-button">
                     <div class="icon">
-                        <i class='bx bx-calendar-event'></i>
+                        <i class='bx bxs-group'></i>
                     </div>
-                    <div class="text">Schedule Matches</div>
+                    <div class="text">Add ULSC</div>
                 </a>
                 
                 <a href="addstudents.php" class="action-button">
