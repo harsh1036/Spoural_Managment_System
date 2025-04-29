@@ -1,5 +1,8 @@
 <?php
+require_once __DIR__ . '/SimpleXLSXGen.php';
+require_once __DIR__ . '/SimpleXLSX.php';
 use Shuchkin\SimpleXLSXGen;
+use Shuchkin\SimpleXLSX;
 
 include('../includes/session_management.php');
 include('../includes/config.php');
@@ -15,6 +18,11 @@ $admin_username = $_SESSION['login'];
 
 // Initialize variables
 $event_id = $event_name = $event_type = $min_participants = $max_participants = "";
+
+// Define the correct column headers
+$expectedColumns = ['event_name', 'event_type', 'min_participants', 'max_participants'];
+
+$message = "";
 
 // Handle download template
 if (isset($_GET['download_template'])) {
@@ -101,6 +109,51 @@ if (isset($_POST['save_event'])) {
         echo "<script>alert('Database error: " . $e->getMessage() . "');</script>";
     }
 }
+
+// Handle file upload and validation
+if (isset($_POST['import'])) {
+    if ($_FILES['excel_file']['error'] == UPLOAD_ERR_OK) {
+        $file = $_FILES['excel_file']['tmp_name'];
+        
+        if ($xlsx = SimpleXLSX::parse($file)) {
+            $rows = $xlsx->rows();
+            
+            // Validate column names
+            if ($rows[0] !== $expectedColumns) {
+                echo "<script>alert('Error: Column names do not match the expected format!'); window.location.href='addevent.php';</script>";
+                exit;
+            } else {
+                try {
+                    foreach (array_slice($rows, 1) as $row) {
+                        $event_name = $row[0]; 
+                        $event_type = $row[1]; 
+                        $min_participants = $row[2]; 
+                        $max_participants = $row[3];
+
+                        $sql = "INSERT INTO events (event_name, event_type, min_participants, max_participants) VALUES (:name, :type, :min, :max)";
+                        $stmt = $dbh->prepare($sql);
+                        $stmt->bindParam(':name', $event_name, PDO::PARAM_STR);
+                        $stmt->bindParam(':type', $event_type, PDO::PARAM_STR);
+                        $stmt->bindParam(':min', $min_participants, PDO::PARAM_INT);
+                        $stmt->bindParam(':max', $max_participants, PDO::PARAM_INT);
+                        $stmt->execute();
+                    }
+                    echo "<script>alert('Data imported successfully!'); window.location.href='addevent.php';</script>";
+                    exit;
+                } catch (PDOException $e) {
+                    echo "<script>alert('Database error: " . addslashes($e->getMessage()) . "'); window.location.href='addevent.php';</script>";
+                    exit;
+                }
+            }
+        } else {
+            echo "<script>alert('Failed to parse Excel file!'); window.location.href='addevent.php';</script>";
+            exit;
+        }
+    } else {
+        echo "<script>alert('Error uploading file!'); window.location.href='addevent.php';</script>";
+        exit;
+    }
+}
 ?>
 
 <!DOCTYPE html>
@@ -152,18 +205,18 @@ if (isset($_POST['save_event'])) {
 
                             <div class="form-group mb-3">
                                 <label class="form-label">Event Name:</label>
-                                <input type="text" name="event_name" class="form-control" value="<?= isset($event_name) ? htmlspecialchars($event_name) : '' ?>" required>
+                                <input type="text" name="event_name" class="form-control" value="" required>
                             </div>
 
                             <div class="form-group mb-3">
                                 <label class="form-label">Event Type:</label>
                                 <div class="d-flex gap-4">
                                     <div class="form-check">
-                                        <input type="radio" name="event_type" value="Sports" class="form-check-input" <?= (isset($event_type) && $event_type == 'Sports') ? 'checked' : '' ?> required>
+                                        <input type="radio" name="event_type" value="Sports" class="form-check-input" required>
                                         <label class="form-check-label">Sports</label>
                                     </div>
                                     <div class="form-check">
-                                        <input type="radio" name="event_type" value="Cultural" class="form-check-input" <?= (isset($event_type) && $event_type == 'Cultural') ? 'checked' : '' ?> required>
+                                        <input type="radio" name="event_type" value="Cultural" class="form-check-input" required>
                                         <label class="form-check-label">Cultural</label>
                                     </div>
                                 </div>
@@ -171,12 +224,12 @@ if (isset($_POST['save_event'])) {
 
                             <div class="form-group mb-3">
                                 <label class="form-label">Min Participants:</label>
-                                <input type="number" name="min_participants" class="form-control" value="<?= isset($min_participants) ? htmlspecialchars($min_participants) : '' ?>" required>
+                                <input type="number" name="min_participants" class="form-control" value="" required>
                             </div>
                             
                             <div class="form-group mb-4">
                                 <label class="form-label">Max Participants:</label>
-                                <input type="number" name="max_participants" class="form-control" value="<?= isset($max_participants) ? htmlspecialchars($max_participants) : '' ?>" required>
+                                <input type="number" name="max_participants" class="form-control" value="" required>
                             </div>
 
                             <div class="form-group">

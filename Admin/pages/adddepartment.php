@@ -1,5 +1,8 @@
 <?php
+require_once __DIR__ . '/SimpleXLSXGen.php';
+require_once __DIR__ . '/SimpleXLSX.php';
 use Shuchkin\SimpleXLSXGen;
+use Shuchkin\SimpleXLSX;
 
 include('../includes/session_management.php');
 include('../includes/config.php');
@@ -18,8 +21,6 @@ $dept_id = $dept_name = "";
 
 // Handle download template
 if (isset($_GET['download_template'])) {
-    require_once 'SimpleXLSXGen.php';
-    
     $data = [
         ['dept_id', 'dept_name'], // Column headers
     ];
@@ -61,6 +62,64 @@ if (isset($_GET['edit_id'])) {
         }
     } catch (PDOException $e) {
         echo "<script>alert('Database error: " . $e->getMessage() . "');</script>";
+    }
+}
+
+// Handle file import
+if (isset($_POST['import'])) {
+    if ($_FILES['excel_file']['error'] == UPLOAD_ERR_OK) {
+        $file = $_FILES['excel_file']['tmp_name'];
+        
+        if ($xlsx = SimpleXLSX::parse($file)) {
+            $rows = $xlsx->rows();
+            $expectedColumns = ['dept_id', 'dept_name'];
+            
+            // Validate column names
+            if ($rows[0] !== $expectedColumns) {
+                echo "<script>alert('Error: Column names do not match the expected format!'); window.location.href='adddepartment.php';</script>";
+                exit;
+            } else {
+                try {
+                    $dbh->beginTransaction();
+                    
+                    foreach (array_slice($rows, 1) as $row) {
+                        $dept_id = $row[0]; 
+                        $dept_name = $row[1];
+
+                        // Check if department ID already exists
+                        $check_sql = "SELECT COUNT(*) FROM departments WHERE dept_id = :dept_id";
+                        $check_stmt = $dbh->prepare($check_sql);
+                        $check_stmt->bindParam(':dept_id', $dept_id, PDO::PARAM_INT);
+                        $check_stmt->execute();
+                        
+                        if ($check_stmt->fetchColumn() > 0) {
+                            throw new Exception("Department ID $dept_id already exists");
+                        }
+
+                        $sql = "INSERT INTO departments (dept_id, dept_name) VALUES (:dept_id, :dept_name)";
+                        $stmt = $dbh->prepare($sql);
+                        $stmt->bindParam(':dept_id', $dept_id, PDO::PARAM_INT);
+                        $stmt->bindParam(':dept_name', $dept_name, PDO::PARAM_STR);
+                        $stmt->execute();
+                    }
+                    
+                    $dbh->commit();
+                    echo "<script>alert('Data imported successfully!'); window.location.href='adddepartment.php';</script>";
+                    exit;
+                    
+                } catch (Exception $e) {
+                    $dbh->rollBack();
+                    echo "<script>alert('Error: " . addslashes($e->getMessage()) . "'); window.location.href='adddepartment.php';</script>";
+                    exit;
+                }
+            }
+        } else {
+            echo "<script>alert('Failed to parse Excel file!'); window.location.href='adddepartment.php';</script>";
+            exit;
+        }
+    } else {
+        echo "<script>alert('Error uploading file!'); window.location.href='adddepartment.php';</script>";
+        exit;
     }
 }
 

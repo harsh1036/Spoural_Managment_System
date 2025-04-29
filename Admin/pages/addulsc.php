@@ -1,5 +1,8 @@
 <?php
+require_once __DIR__ . '/SimpleXLSXGen.php';
+require_once __DIR__ . '/SimpleXLSX.php';
 use Shuchkin\SimpleXLSXGen;
+use Shuchkin\SimpleXLSX;
 
 include('../includes/session_management.php');
 include('../includes/config.php');
@@ -70,16 +73,83 @@ if (isset($_GET['edit_id'])) {
     }
 }
 
-// Handle download template
+// Function to generate and download the Excel template
 if (isset($_GET['download_template'])) {
-    require_once 'SimpleXLSXGen.php';
-    
     $data = [
         ['ulsc_id', 'ulsc_name', 'dept_id', 'contact'], // Column headers
     ];
     $xlsx = SimpleXLSXGen::fromArray($data);
     $xlsx->downloadAs('ULSC_Template.xlsx');
     exit;
+}
+
+// Handle file upload and validation
+if (isset($_POST['import'])) {
+    if ($_FILES['excel_file']['error'] == UPLOAD_ERR_OK) {
+        $file = $_FILES['excel_file']['tmp_name'];
+        
+        if ($xlsx = SimpleXLSX::parse($file)) {
+            $rows = $xlsx->rows();
+            $expectedColumns = ['ulsc_id', 'ulsc_name', 'dept_id', 'contact'];
+            
+            // Validate column names
+            if ($rows[0] !== $expectedColumns) {
+                echo "<script>alert('Error: Column names do not match the expected format!'); window.location.href='addulsc.php';</script>";
+                exit;
+            } else {
+                try {
+                    $dbh->beginTransaction();
+                    
+                    foreach (array_slice($rows, 1) as $row) {
+                        $ulsc_id = $row[0]; 
+                        $ulsc_name = $row[1]; 
+                        $dept_id = $row[2]; 
+                        $contact = $row[3];
+
+                        // Generate email and password
+                        $email = $ulsc_id . "@charusat.edu.in";
+                        $plain_password = "1234";
+                        $hashed_password = password_hash($plain_password, PASSWORD_BCRYPT);
+
+                        // Check if ULSC ID already exists
+                        $check_sql = "SELECT COUNT(*) FROM ulsc WHERE ulsc_id = :ulsc_id";
+                        $check_stmt = $dbh->prepare($check_sql);
+                        $check_stmt->bindParam(':ulsc_id', $ulsc_id, PDO::PARAM_STR);
+                        $check_stmt->execute();
+                        
+                        if ($check_stmt->fetchColumn() > 0) {
+                            throw new Exception("ULSC ID $ulsc_id already exists");
+                        }
+
+                        $sql = "INSERT INTO ulsc (ulsc_id, ulsc_name, dept_id, contact, email, password) VALUES (:ulsc_id, :ulsc_name, :dept_id, :contact, :email, :password)";
+                        $stmt = $dbh->prepare($sql);
+                        $stmt->bindParam(':ulsc_id', $ulsc_id, PDO::PARAM_STR);
+                        $stmt->bindParam(':ulsc_name', $ulsc_name, PDO::PARAM_STR);
+                        $stmt->bindParam(':dept_id', $dept_id, PDO::PARAM_INT);
+                        $stmt->bindParam(':contact', $contact, PDO::PARAM_STR);
+                        $stmt->bindParam(':email', $email, PDO::PARAM_STR);
+                        $stmt->bindParam(':password', $hashed_password, PDO::PARAM_STR);
+                        $stmt->execute();
+                    }
+                    
+                    $dbh->commit();
+                    echo "<script>alert('Data imported successfully!'); window.location.href='addulsc.php';</script>";
+                    exit;
+                    
+                } catch (Exception $e) {
+                    $dbh->rollBack();
+                    echo "<script>alert('Error: " . addslashes($e->getMessage()) . "'); window.location.href='addulsc.php';</script>";
+                    exit;
+                }
+            }
+        } else {
+            echo "<script>alert('Failed to parse Excel file!'); window.location.href='addulsc.php';</script>";
+            exit;
+        }
+    } else {
+        echo "<script>alert('Error uploading file!'); window.location.href='addulsc.php';</script>";
+        exit;
+    }
 }
 
 // Handle form submission
@@ -390,18 +460,14 @@ if (isset($_POST['save_ulsc'])) {
                                 <div class="card shadow-lg border-0 rounded-3">
                                     <div class="card-body">
                                         <?php if (isset($message)) echo $message; ?>
-                                        <a href="?download_template=1" class="btn btn-info w-100 mb-3">
-                                            <i class='bx bx-download'></i> Download Template
-                                        </a>
+                                        <a href="?download_template=1" class="btn btn-info w-100 mb-3">📥 Download Template</a>
                                         <form method="POST" enctype="multipart/form-data">
                                             <div class="mb-3">
                                                 <label for="excel_file" class="form-label">Upload Excel File (.xlsx)</label>
                                                 <input type="file" class="form-control" id="excel_file" name="excel_file" accept=".xlsx" required>
                                             </div>
                                             <div class="d-grid">
-                                                <button type="submit" name="import" class="btn btn-success">
-                                                    <i class='bx bx-upload'></i> Import Data
-                                                </button>
+                                                <button type="submit" name="import" class="btn btn-success">📥 Import Data</button>
                                             </div>
                                         </form>
                                     </div>

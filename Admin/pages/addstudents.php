@@ -1,5 +1,8 @@
 <?php
+require_once __DIR__ . '/SimpleXLSXGen.php';
+require_once __DIR__ . '/SimpleXLSX.php';
 use Shuchkin\SimpleXLSXGen;
+use Shuchkin\SimpleXLSX;
 
 include('../includes/session_management.php');
 include('../includes/config.php');
@@ -15,18 +18,6 @@ $admin_username = $_SESSION['login'];
 
 // Initialize variables
 $student_id = $student_name = $contact = $dept_id = "";
-
-// Handle download template
-if (isset($_GET['download_template'])) {
-    require_once 'SimpleXLSXGen.php';
-    
-    $data = [
-        ['student_id', 'student_name', 'contact', 'dept_id'], // Column headers
-    ];
-    $xlsx = SimpleXLSXGen::fromArray($data);
-    $xlsx->downloadAs('Students_Template.xlsx');
-    exit;
-}
 
 // Handle delete operation
 if (isset($_GET['delete_id'])) {
@@ -64,6 +55,16 @@ if (isset($_GET['edit_id'])) {
     } catch (PDOException $e) {
         echo "<script>alert('Database error: " . $e->getMessage() . "');</script>";
     }
+}
+
+// Handle download template
+if (isset($_GET['download_template'])) {
+    $data = [
+        ['student_id', 'student_name', 'contact', 'dept_id'], // Column headers
+    ];
+    $xlsx = SimpleXLSXGen::fromArray($data);
+    $xlsx->downloadAs('Students_Template.xlsx');
+    exit;
 }
 
 // Handle form submission
@@ -115,28 +116,58 @@ if (isset($_POST['import'])) {
         
         if ($xlsx = SimpleXLSX::parse($file)) {
             $rows = $xlsx->rows();
+            $expectedColumns = ['student_id', 'student_name', 'contact', 'dept_id'];
             
             // Validate column names
-            if ($rows[0] !== ['student_id', 'student_name', 'contact', 'dept_id']) {
-                $message = "<div class='alert alert-danger'>Error: Column names do not match the expected format!</div>";
+            if ($rows[0] !== $expectedColumns) {
+                echo "<script>alert('Error: Column names do not match the expected format!'); window.location.href='addstudents.php';</script>";
+                exit;
             } else {
-                foreach (array_slice($rows, 1) as $row) {
-                    $student_id = $row[0]; 
-                    $student_name = $row[1]; 
-                    $contact = $row[2]; 
-                    $dept_id = $row[3];
+                try {
+                    $dbh->beginTransaction();
+                    
+                    foreach (array_slice($rows, 1) as $row) {
+                        $student_id = $row[0]; 
+                        $student_name = $row[1]; 
+                        $contact = $row[2]; 
+                        $dept_id = $row[3];
 
-                    $sql = "INSERT INTO student (student_id, student_name, contact, dept_id) VALUES (?, ?, ?, ?)";
-                    $stmt = $dbh->prepare($sql);
-                    $stmt->execute([$student_id, $student_name, $contact, $dept_id]);
+                        // Check if student ID already exists
+                        $check_sql = "SELECT COUNT(*) FROM student WHERE student_id = :student_id";
+                        $check_stmt = $dbh->prepare($check_sql);
+                        $check_stmt->bindParam(':student_id', $student_id, PDO::PARAM_STR);
+                        $check_stmt->execute();
+                        
+                        if ($check_stmt->fetchColumn() > 0) {
+                            throw new Exception("Student ID $student_id already exists");
+                        }
+
+                        $sql = "INSERT INTO student (student_id, student_name, contact, dept_id) VALUES (:student_id, :student_name, :contact, :dept_id)";
+                        $stmt = $dbh->prepare($sql);
+                        $stmt->bindParam(':student_id', $student_id, PDO::PARAM_STR);
+                        $stmt->bindParam(':student_name', $student_name, PDO::PARAM_STR);
+                        $stmt->bindParam(':contact', $contact, PDO::PARAM_STR);
+                        $stmt->bindParam(':dept_id', $dept_id, PDO::PARAM_INT);
+                        $stmt->execute();
+                    }
+                    
+                    $dbh->commit();
+                    echo "<script>alert('Data imported successfully!'); window.location.href='addstudents.php';</script>";
+                    exit;
+                    
+                } catch (Exception $e) {
+                    $dbh->rollBack();
+                    echo "<script>alert('Error: " . addslashes($e->getMessage()) . "'); window.location.href='addstudents.php';</script>";
+                    exit;
                 }
-                $message = "<div class='alert alert-success'>Data imported successfully!</div>";
             }
         } else {
-            $message = "<div class='alert alert-danger'>Failed to parse Excel file!</div>";
+            echo "<script>alert('Failed to parse Excel file!'); window.location.href='addstudents.php';</script>";
+            exit;
         }
     } else {
-        $message = "<div class='alert alert-danger'>Error uploading file!</div>";
+        echo "<script>alert('Error uploading file!'); window.location.href='addstudents.php';</script>";
+        exit;
     }
 }
 ?>
@@ -305,18 +336,14 @@ if (isset($_POST['import'])) {
                                 <div class="card shadow-lg border-0 rounded-3">
                                     <div class="card-body">
                                         <?php if (isset($message)) echo $message; ?>
-                                        <a href="?download_template=1" class="btn btn-info w-100 mb-3">
-                                            <i class='bx bx-download'></i> Download Template
-                                        </a>
+                                        <a href="?download_template=1" class="btn btn-info w-100 mb-3">📥 Download Template</a>
                                         <form method="POST" enctype="multipart/form-data">
                                             <div class="mb-3">
                                                 <label for="excel_file" class="form-label">Upload Excel File (.xlsx)</label>
                                                 <input type="file" class="form-control" id="excel_file" name="excel_file" accept=".xlsx" required>
                                             </div>
                                             <div class="d-grid">
-                                                <button type="submit" name="import" class="btn btn-success">
-                                                    <i class='bx bx-upload'></i> Import Data
-                                                </button>
+                                                <button type="submit" name="import" class="btn btn-success">📥 Import Data</button>
                                             </div>
                                         </form>
                                     </div>
