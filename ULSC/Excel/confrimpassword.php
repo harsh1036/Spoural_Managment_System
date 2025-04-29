@@ -1,17 +1,26 @@
 <?php
 session_start();
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
 
 $message = '';
 $messageClass = '';
 
-// Check if the form is submitted and the email field is set
-if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['email'])) {
-    $email = $_POST['email'];
+// Get token from URL
+$token = isset($_GET['token']) ? $_GET['token'] : '';
+if (empty($token)) {
+    die("Invalid reset link. Please request a new password reset.");
+}
+
+// Check if the form is submitted
+if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $new_password = $_POST['new_password'];
     $confirm_password = $_POST['confirm_password'];
+    $email = $_POST['email'];
 
-    // Extract ID from email (part before @charusat.edu.in)
-    $ulsc_id = explode('@', $email)[0];
+    // Debug log
+    error_log("POST data received: " . print_r($_POST, true));
+    error_log("Attempting password reset for email: " . $email);
 
     // Password validation
     $uppercase = preg_match('@[A-Z]@', $new_password);
@@ -36,38 +45,41 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['email'])) {
                 throw new Exception("Connection failed: " . $db->connect_error);
             }
 
-            // First check if the ULSC ID exists in the ulsc table
-            $check_stmt = $db->prepare("SELECT id FROM ulsc WHERE ulsc_id = ?");
-            if (!$check_stmt) {
-                throw new Exception("Prepare failed: " . $db->error);
+            // Debug query to see all emails in the database
+            $debug_query = "SELECT email FROM ulsc";
+            $debug_result = $db->query($debug_query);
+            error_log("All emails in database:");
+            while ($row = $debug_result->fetch_assoc()) {
+                error_log("DB Email: '" . $row['email'] . "'");
             }
 
-            $check_stmt->bind_param("s", $ulsc_id);
-            $check_stmt->execute();
-            $result = $check_stmt->get_result();
-
-            if ($result->num_rows === 0) {
-                throw new Exception("No ULSC account found with this ID.");
-            }
-
-            $check_stmt->close();
-
-            // If ULSC ID exists, proceed with password update
+            // If email exists, proceed with password update
             $hashed_password = password_hash($new_password, PASSWORD_DEFAULT);
             
-            $update_stmt = $db->prepare("UPDATE ulsc SET password = ? WHERE ulsc_id = ?");
+            $update_sql = "UPDATE ulsc SET password = ? WHERE email = ?";
+            error_log("Update SQL: " . $update_sql);
+            
+            $update_stmt = $db->prepare($update_sql);
             if (!$update_stmt) {
                 throw new Exception("Prepare failed: " . $db->error);
             }
 
-            $update_stmt->bind_param("ss", $hashed_password, $ulsc_id);
+            $update_stmt->bind_param("ss", $hashed_password, $email);
             
             if ($update_stmt->execute()) {
-                $message = 'Password updated successfully! You can now login with your new password.';
-                $messageClass = 'success';
-                // Redirect after 2 seconds
-                header("refresh:2;url=../index.php");
+                // Check if any rows were actually updated
+                if ($update_stmt->affected_rows > 0) {
+                    error_log("Password updated successfully for email: " . $email);
+                    $message = 'Password updated successfully! You can now login with your new password.';
+                    $messageClass = 'success';
+                    // Redirect after 2 seconds
+                    header("refresh:2;url=../index.php");
+                } else {
+                    error_log("No rows updated for email: " . $email);
+                    throw new Exception("Failed to update password. Please try again.");
+                }
             } else {
+                error_log("Error executing update for email: " . $email . ". Error: " . $update_stmt->error);
                 throw new Exception("Error updating password: " . $update_stmt->error);
             }
 
@@ -75,11 +87,16 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['email'])) {
             $db->close();
 
         } catch (Exception $e) {
+            error_log("Error in password reset: " . $e->getMessage());
             $message = $e->getMessage();
             $messageClass = 'error';
         }
     }
 }
+
+// Get email from token (you should implement proper token validation)
+// For now, we'll get it from the session or previous request
+$email = isset($_SESSION['reset_email']) ? $_SESSION['reset_email'] : '';
 ?>
 
 <!DOCTYPE html>
@@ -245,6 +262,17 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['email'])) {
         .password-requirements li.valid i {
             color: #28a745;
         }
+
+        .email-display {
+            background-color: #f8f9fa;
+            padding: 10px;
+            margin-bottom: 20px;
+            border-radius: 5px;
+            text-align: center;
+        }
+        .email-display strong {
+            color: #2942a6;
+        }
     </style>
 </head>
 
@@ -262,8 +290,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['email'])) {
             </div>
         <?php endif; ?>
 
+        <div class="email-display">
+            Resetting password for: <strong><?php echo htmlspecialchars($email); ?></strong>
+        </div>
+
         <form action="" method="post" id="resetForm">
-            <input type="hidden" name="email" value="<?php echo htmlspecialchars($_GET['email'] ?? ''); ?>">
+            <input type="hidden" name="token" value="<?php echo htmlspecialchars($token); ?>">
+            <input type="hidden" name="email" value="<?php echo htmlspecialchars($email); ?>">
             
             <div class="form-group">
                 <label for="new_password">New Password</label>

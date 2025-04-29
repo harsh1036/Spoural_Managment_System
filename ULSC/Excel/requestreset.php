@@ -1,4 +1,5 @@
 <?php
+session_start(); // Add session start
 // Import PHPMailer classes into the global namespace
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\SMTP;
@@ -23,36 +24,68 @@ if (isset($_POST["email"])) {
     // Split the email address to get the part before the '@' symbol
     $email_part = explode('@', $email)[0];
 
-    // Create an instance; passing `true` enables exceptions
-    $mail = new PHPMailer(true);
-
     try {
+        // Database connection to verify email exists
+        $db = new mysqli('localhost', 'root', '', 'spoural');
+        if ($db->connect_error) {
+            throw new Exception("Connection failed: " . $db->connect_error);
+        }
+
+        // Check if email exists in database
+        $check_stmt = $db->prepare("SELECT id FROM ulsc WHERE email = ?");
+        if (!$check_stmt) {
+            throw new Exception("Prepare failed: " . $db->error);
+        }
+
+        $check_stmt->bind_param("s", $email);
+        $check_stmt->execute();
+        $result = $check_stmt->get_result();
+
+        if ($result->num_rows === 0) {
+            echo '<script>
+                alert("No account found with this email address.");
+                window.location.href = "resetpassword1.php";
+            </script>';
+            exit;
+        }
+
+        $check_stmt->close();
+        $db->close();
+
+        // Generate a unique reset token
+        $reset_token = bin2hex(random_bytes(32));
+        
+        // Store email in session for confirmation page
+        $_SESSION['reset_email'] = $email;
+        $_SESSION['reset_token'] = $reset_token;
+        $_SESSION['reset_token_expiry'] = time() + (24 * 60 * 60); // 24 hours expiry
+
+        // Create an instance; passing `true` enables exceptions
+        $mail = new PHPMailer(true);
+
         // Server settings
         $mail->isSMTP();
-        $mail->SMTPDebug = 0;  // Send using SMTP
-        $mail->Host = 'smtp.gmail.com';  // Set the SMTP server to send through
-        $mail->SMTPAuth = true;  // Enable SMTP authentication
-        $mail->Username   = 'spoural025@gmail.com';                     //SMTP username
-        $mail->Password   = 'ribh uzqa gqwp bsnm';    
-        $mail->SMTPSecure = 'ssl';  // Enable implicit TLS encryption
-        $mail->Port = 465;  // TCP port to connect to; use 587 if you have set `SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS`
+        $mail->SMTPDebug = 0;
+        $mail->Host = 'smtp.gmail.com';
+        $mail->SMTPAuth = true;
+        $mail->Username = 'spoural025@gmail.com';
+        $mail->Password = 'ribh uzqa gqwp bsnm';
+        $mail->SMTPSecure = 'ssl';
+        $mail->Port = 465;
 
         // Recipients
         $mail->setFrom('spoural025@gmail.com', 'Spoural Admin');
-        $mail->addAddress($email);  // Add a recipient
+        $mail->addAddress($email);
         $mail->addReplyTo('no-reply@gmail.com', 'No Reply');
 
         // Content
-        $mail->isHTML(true);  // Set email format to HTML
+        $mail->isHTML(true);
         $mail->Subject = 'Password Reset Request - Spoural Management System';
 
-        // Create a clickable link
-        $link = 'http://localhost/Spoural_Managment_System/ULSC/Excel/confrimpassword.php';
+        // Create a clickable link with email and token
+        $link = 'http://localhost/Spoural_Managment_System/ULSC/Excel/confrimpassword.php?token=' . $reset_token;
 
-        // Generate a unique reset token (you might want to store this in your database)
-        $reset_token = bin2hex(random_bytes(32));
-
-        // Set the email body with a more professional and unique design
+        // Email body (keep your existing HTML email template)
         $mail->Body = '
             <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
                 <div style="text-align: center; margin-bottom: 30px;">
@@ -70,7 +103,7 @@ if (isset($_POST["email"])) {
                     <p style="margin-bottom: 15px; color: #333; line-height: 1.6;">We received a request to reset the password for your Spoural Management System account. To proceed with the password reset, please click the button below:</p>
                     
                     <div style="text-align: center; margin: 30px 0;">
-                        <a href="' . $link . '?token=' . $reset_token . '" 
+                        <a href="' . $link . '" 
                            style="background: #2942a6; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">
                             Reset Your Password
                         </a>
@@ -98,28 +131,9 @@ if (isset($_POST["email"])) {
             </div>
         ';
 
-        // Plain text version of the email
-        $mail->AltBody = "
-            Password Reset Request - Spoural Management System
-            
-            Dear " . ucfirst($email_part) . ",
-            
-            We received a request to reset the password for your Spoural Management System account.
-            
-            To reset your password, please visit the following link:
-            " . $link . "?token=" . $reset_token . "
-            
-            This link will expire in 24 hours.
-            
-            If you did not request this password reset, please ignore this email.
-            
-            Best regards,
-            Spoural Management System Team
-            CHARUSAT
-        ";
+        $mail->AltBody = "Reset your password by visiting: " . $link;
 
         $mail->send();
-
         echo '<script>alert("Password reset instructions have been sent to your email."); window.location.href = "../index.php";</script>';
     } catch (Exception $e) {
         echo '<script>
