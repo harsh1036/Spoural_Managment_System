@@ -452,9 +452,9 @@ if (isset($_POST['login'])) {
                                         <input type="password" id="password" name="password" class="form-control" placeholder="Enter your password" required>
                                         
                                     </div>
-                                    <div class="reset-pass">
+                                    <!-- <div class="reset-pass">
                                     <a href="Excel/resetpassword1.php">Forgot your password?</a>
-                                        </div>
+                                        </div> -->
                                 </div>
                                 <!-- <div class="field field-checkbox padding-bottom--24 flex-flex align-center">
                                     <label for="checkbox">
