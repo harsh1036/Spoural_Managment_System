@@ -132,25 +132,42 @@ if (isset($_POST['save_event'])) {
                 </div>
                 <div class="main-content">
                     <section class="event-form">
-                        <h3><?= isset($_GET['edit_id']) ? 'Edit Event' : 'New Event' ?></h3>
+                        <h3 class="mb-4"><?= isset($_GET['edit_id']) ? 'Edit Event' : 'New Event' ?></h3>
                         <form method="post" action="addevent.php" class="event-input-form">
                             <input type="hidden" name="event_id" value="<?= isset($_GET['edit_id']) ? htmlspecialchars($_GET['edit_id']) : '' ?>">
 
-                            <label>Event Name:</label>
-                            <input type="text" name="event_name" class="input-field" value="<?= isset($event_name) ? htmlspecialchars($event_name) : '' ?>" required>
+                            <div class="form-group mb-3">
+                                <label class="form-label">Event Name:</label>
+                                <input type="text" name="event_name" class="form-control" value="<?= isset($event_name) ? htmlspecialchars($event_name) : '' ?>" required>
+                            </div>
 
-                            <label>Event Type: </label>
-                            <br>
-                            <input type="radio" name="event_type" value="Sports" <?= (isset($event_type) && $event_type == 'Sports') ? 'checked' : '' ?> required> Sports
-                            <input type="radio" name="event_type" value="Cultural" <?= (isset($event_type) && $event_type == 'Cultural') ? 'checked' : '' ?> required> Cultural
+                            <div class="form-group mb-3">
+                                <label class="form-label">Event Type:</label>
+                                <div class="d-flex gap-4">
+                                    <div class="form-check">
+                                        <input type="radio" name="event_type" value="Sports" class="form-check-input" <?= (isset($event_type) && $event_type == 'Sports') ? 'checked' : '' ?> required>
+                                        <label class="form-check-label">Sports</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input type="radio" name="event_type" value="Cultural" class="form-check-input" <?= (isset($event_type) && $event_type == 'Cultural') ? 'checked' : '' ?> required>
+                                        <label class="form-check-label">Cultural</label>
+                                    </div>
+                                </div>
+                            </div>
 
-                            <label>Min Participants:</label>
-                            <input type="number" name="min_participants" class="input-field" value="<?= isset($min_participants) ? htmlspecialchars($min_participants) : '' ?>" required>
+                            <div class="form-group mb-3">
+                                <label class="form-label">Min Participants:</label>
+                                <input type="number" name="min_participants" class="form-control" value="<?= isset($min_participants) ? htmlspecialchars($min_participants) : '' ?>" required>
+                            </div>
                             
-                            <label>Max Participants:</label>
-                            <input type="number" name="max_participants" class="input-field" value="<?= isset($max_participants) ? htmlspecialchars($max_participants) : '' ?>" required>
+                            <div class="form-group mb-4">
+                                <label class="form-label">Max Participants:</label>
+                                <input type="number" name="max_participants" class="form-control" value="<?= isset($max_participants) ? htmlspecialchars($max_participants) : '' ?>" required>
+                            </div>
 
-                            <button type="submit" name="save_event" class="submit-button"><?= isset($_GET['edit_id']) ? 'Update' : 'Submit' ?></button>
+                            <div class="form-group">
+                                <button type="submit" name="save_event" class="btn btn-primary px-4"><?= isset($_GET['edit_id']) ? 'Update' : 'Submit' ?></button>
+                            </div>
                         </form>
                     </section>
                     <br><br>
