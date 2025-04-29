@@ -1,4 +1,6 @@
 <?php
+use Shuchkin\SimpleXLSXGen;
+
 include('../includes/session_management.php');
 include('../includes/config.php');
 
@@ -13,6 +15,18 @@ $admin_username = $_SESSION['login'];
 
 // Initialize variables
 $dept_id = $dept_name = "";
+
+// Handle download template
+if (isset($_GET['download_template'])) {
+    require_once 'SimpleXLSXGen.php';
+    
+    $data = [
+        ['dept_id', 'dept_name'], // Column headers
+    ];
+    $xlsx = SimpleXLSXGen::fromArray($data);
+    $xlsx->downloadAs('Departments_Template.xlsx');
+    exit;
+}
 
 // Handle delete operation
 if (isset($_GET['delete_id'])) {
@@ -184,15 +198,18 @@ if (isset($_POST['save_department'])) {
                             <div class="col-md-8">
                                 <div class="card shadow-lg border-0 rounded-3">
                                     <div class="card-body">
-                                        <?php if (isset($message)) echo $message; ?>
-                                        <a href="?download_template=1" class="btn btn-info w-100 mb-3">📥 Download Template</a>
+                                        <a href="?download_template=1" class="btn btn-info w-100 mb-3">
+                                            <i class='bx bx-download'></i> Download Template
+                                        </a>
                                         <form method="POST" enctype="multipart/form-data">
                                             <div class="mb-3">
                                                 <label for="excel_file" class="form-label">Upload Excel File (.xlsx)</label>
                                                 <input type="file" class="form-control" id="excel_file" name="excel_file" accept=".xlsx" required>
                                             </div>
                                             <div class="d-grid">
-                                                <button type="submit" name="import" class="btn btn-success">📥 Import Data</button>
+                                                <button type="submit" name="import" class="btn btn-success">
+                                                    <i class='bx bx-upload'></i> Import Data
+                                                </button>
                                             </div>
                                         </form>
                                     </div>

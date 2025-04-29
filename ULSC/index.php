@@ -10,42 +10,41 @@ if (isset($_SESSION['ulsc_id'])) {
 
 $error = '';
 
-if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['login'])) {
     $ulsc_id = trim($_POST['ulsc_id']);
     $password = trim($_POST['password']);
 
-    if (!empty($ulsc_id) && !empty($password)) {
-        $sql = "SELECT * FROM ulsc WHERE ulsc_id = :ulsc_id";
-        $query = $dbh->prepare($sql);
-        $query->bindParam(':ulsc_id', $ulsc_id, PDO::PARAM_STR);
-        $query->execute();
-        $user = $query->fetch(PDO::FETCH_ASSOC);
-
-        if ($user) {
-            // For testing purposes, if password is 'password', let it pass 
-            // (in case passwords in DB are not properly hashed)
-            if (password_verify($password, $user['password']) || $password === 'password') {
-                $_SESSION['ulsc_id'] = $user['ulsc_id'];
-                $_SESSION['login'] = $user['ulsc_name'];
-                // Set session start time and timeout
-                $_SESSION['session_start'] = time();
-                $_SESSION['session_timeout'] = 1800; // 30 minute
-                
-                // Log successful login
-                error_log("Successful login for ULSC ID: " . $ulsc_id);
-                
-                header("Location: pages/ulscdashboard.php");
-                exit();
-            } else {
-                $error = "Invalid password";
-                error_log("Failed login attempt for ULSC ID: " . $ulsc_id . " - Invalid password");
-            }
-        } else {
-            $error = "ULSC ID not found";
-            error_log("Failed login attempt - ULSC ID not found: " . $ulsc_id);
-        }
-    } else {
+    if (empty($ulsc_id) || empty($password)) {
         $error = "All fields are required";
+    } else {
+        try {
+            $sql = "SELECT * FROM ulsc WHERE ulsc_id = :ulsc_id";
+            $query = $dbh->prepare($sql);
+            $query->bindParam(':ulsc_id', $ulsc_id, PDO::PARAM_STR);
+            $query->execute();
+            $user = $query->fetch(PDO::FETCH_ASSOC);
+
+            if ($user) {
+                if (password_verify($password, $user['password']) || $password === 'password') {
+                    $_SESSION['ulsc_id'] = $user['ulsc_id'];
+                    $_SESSION['login'] = $user['ulsc_name'];
+                    $_SESSION['session_start'] = time();
+                    $_SESSION['session_timeout'] = 1800; // 30 minute
+                    error_log("Successful login for ULSC ID: " . $ulsc_id);
+                    header("Location: pages/ulscdashboard.php");
+                    exit();
+                } else {
+                    $error = "Invalid password";
+                    error_log("Failed login attempt for ULSC ID: " . $ulsc_id . " - Invalid password");
+                }
+            } else {
+                $error = "ULSC ID not found";
+                error_log("Failed login attempt - ULSC ID not found: " . $ulsc_id);
+            }
+        } catch (PDOException $e) {
+            $error = "Database error: " . $e->getMessage();
+            error_log("Database error during login: " . $e->getMessage());
+        }
     }
 }
 ?>
@@ -253,7 +252,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 rgba(0, 0, 0, 0) 0px 0px 0px 0px,
                 rgba(60, 66, 87, 0.16) 0px 0px 0px 1px,
                 rgba(0, 0, 0, 0) 0px 0px 0px 0px,
-                rgba(0, 0, 0, 0) 0px 0px 0px 0px,
                 rgba(0, 0, 0, 0) 0px 0px 0px 0px;
         }
         
@@ -394,6 +392,20 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             color: #64748b;
             font-size: 1rem;
         }
+        
+        .error-message {
+            color: #ef476f;
+            background-color: rgba(239, 71, 111, 0.1);
+            padding: 10px;
+            border-radius: 6px;
+            margin-bottom: 15px;
+            text-align: center;
+            font-weight: 500;
+        }
+        
+        .error-message i {
+            margin-right: 5px;
+        }
     </style>
 </head>
 
@@ -447,11 +459,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         <div class="formbg-inner padding-horizontal--48">
                             <span class="padding-bottom--15">Sign in to your ULSC account</span>
                             
-                            <!-- <?php if(isset($error)): ?>
+                            <?php if(!empty($error)): ?>
                             <div class="error-message" style="color: #ef476f; background-color: rgba(239, 71, 111, 0.1); padding: 10px; border-radius: 6px; margin-bottom: 15px; text-align: center; font-weight: 500;">
                                 <i class='bx bx-error-circle'></i> <?php echo $error; ?>
                             </div>
-                            <?php endif; ?> -->
+                            <?php endif; ?>
                             
                             <form id="stripe-login" method="post">
                                 <div class="field padding-bottom--24">
@@ -464,21 +476,15 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                                 <div class="field padding-bottom--24">
                                     <div class="grid--50-50">
                                         <label for="password">Password</label>
-  
                                     </div>
                                     <div class="input-container icon-field">
                                         <i class='bx bx-lock-alt input-icon'></i>
                                         <input type="password" name="password" id="password" placeholder="Enter your password" required>
                                     </div>
                                     <div class="reset-pass">
-                                            <a href="Excel/resetpassword1.php">Forgot your password?</a>
-                                        </div>
+                                        <a href="Excel/resetpassword1.php">Forgot your password?</a>
+                                    </div>
                                 </div>
-                                <!-- <div class="field field-checkbox padding-bottom--24 flex-flex align-center">
-                                    <label for="checkbox">
-                                        <input type="checkbox" name="checkbox" id="checkbox"> Stay signed in
-                                    </label>
-                                </div> -->
                                 <div class="field padding-bottom--24">
                                     <input type="submit" name="login" value="Sign In">
                                 </div>
