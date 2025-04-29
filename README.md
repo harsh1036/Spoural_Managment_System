@@ -1,4 +1,4 @@
-# SPOURAL ULSC Login Portal
+# SPOURAL EVENT MANAGEMENT SYSTEM
 
 This project is a login portal for the **SPOURAL ULSC (University Level Student Coordinator)** system, used for managing access to the dashboard for event management. The interface is clean, responsive, and designed using pure HTML, CSS, and PHP, following secure login practices.
 
