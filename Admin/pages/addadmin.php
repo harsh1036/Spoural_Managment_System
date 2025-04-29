@@ -140,14 +140,18 @@ $admins = $query->fetchAll(PDO::FETCH_ASSOC);
                                 <td><?php echo htmlspecialchars($admin['admin_id']); ?></td>
                                 <td><?php echo htmlspecialchars($admin['admin_name']); ?></td>
                                 <td>
-                                    <a href="addadmin.php?edit_id=<?php echo $admin['admin_id']; ?>">
-                                        <img src="../assets/images/edit.jpg" alt="Edit" width="20" height="20">
-                                    </a>
+                                    <button type="button" 
+                                            class="edit-admin btn btn-sm btn-primary"
+                                            data-id="<?php echo htmlspecialchars($admin['admin_id']); ?>"
+                                            data-name="<?php echo htmlspecialchars($admin['admin_name']); ?>">
+                                        <i class='bx bx-edit'></i> Edit
+                                    </button>
                                 </td>
                                 <td>
                                     <a href="addadmin.php?delete_id=<?php echo $admin['admin_id']; ?>"
-                                        onclick="return confirm('Are you sure you want to delete this admin?');">
-                                        <img src="../assets/images/delete.jpg" alt="Edit" width="20" height="20">
+                                       class="btn btn-sm btn-danger"
+                                       onclick="return confirm('Are you sure you want to delete this admin?')">
+                                        <i class='bx bx-trash'></i> Delete
                                     </a>
                                 </td>
                             </tr>
@@ -163,6 +167,30 @@ $admins = $query->fetchAll(PDO::FETCH_ASSOC);
 <?php
                         include_once('../includes/footer.php');
         ?>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            document.querySelectorAll('.edit-admin').forEach(button => {
+                button.addEventListener('click', function() {
+                    // Get the data from the clicked button
+                    const adminId = this.getAttribute('data-id');
+                    const adminName = this.getAttribute('data-name');
+
+                    // Populate the form fields
+                    document.querySelector('input[name="admin_id"]').value = adminId;
+                    document.querySelector('input[name="admin_name"]').value = adminName;
+
+                    // Update form title and button
+                    document.querySelector('.new-admin h2').textContent = 'Edit Admin';
+                    document.querySelector('button[type="submit"]').name = 'edit_admin';
+                    document.querySelector('button[type="submit"]').textContent = 'Update Admin';
+
+                    // Scroll to form
+                    document.querySelector('.new-admin').scrollIntoView({ behavior: 'smooth' });
+                });
+            });
+        });
+    </script>
 </body>
 
 </html>
