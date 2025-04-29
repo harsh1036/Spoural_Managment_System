@@ -1,3 +1,17 @@
+<!-- <html>
+    <head><style>
+        .logo {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+
+        .logo img {
+            max-width: 200px;
+            height: auto;
+        }
+</style></head>
+    </html> -->
 <?php
 session_start(); // Add session start
 // Import PHPMailer classes into the global namespace
@@ -88,9 +102,6 @@ if (isset($_POST["email"])) {
         // Email body (keep your existing HTML email template)
         $mail->Body = '
             <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-                <div style="text-align: center; margin-bottom: 30px;">
-                    <img src="https://charusat.ac.in/images/logo.png" alt="CHARUSAT Logo" style="max-width: 200px;">
-                </div>
                 
                 <div style="background: linear-gradient(135deg, #2942a6 0%, #3b5ee3 100%); color: white; padding: 30px; border-radius: 10px; text-align: center; margin-bottom: 20px;">
                     <h1 style="margin: 0; font-size: 24px;">Password Reset Request</h1>

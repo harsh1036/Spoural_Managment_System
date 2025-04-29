@@ -279,7 +279,7 @@ $email = isset($_SESSION['reset_email']) ? $_SESSION['reset_email'] : '';
 <body>
     <div class="container">
         <div class="logo">
-            <img src="https://charusat.ac.in/images/logo.png" alt="CHARUSAT Logo">
+            <img src="../assets/images/charusat.png" alt="CHARUSAT Logo">
         </div>
 
         <h2>Reset Your Password</h2>
