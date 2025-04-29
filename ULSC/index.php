@@ -29,7 +29,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $_SESSION['login'] = $user['ulsc_name'];
                 // Set session start time and timeout
                 $_SESSION['session_start'] = time();
-                $_SESSION['session_timeout'] = 1800; // 30 minutes
+                $_SESSION['session_timeout'] = 1800; // 30 minute
                 
                 // Log successful login
                 error_log("Successful login for ULSC ID: " . $ulsc_id);
