@@ -113,10 +113,10 @@ $admins = $query->fetchAll(PDO::FETCH_ASSOC);
                     <label>Admin Name:</label>
                     <input type="text" name="admin_name" value="<?= $editData['admin_name'] ?? '' ?>" required>
                     <?php if (isset($editData)): ?>
-                        <button type="submit" name="edit_admin">Submit</button>
+                        <button type="submit"class="btn btn-primary" name="edit_admin">Submit</button>
 
                     <?php else: ?>
-                        <button type="submit" name="add_admin">Submit</button>
+                        <button type="submit" class="btn btn-primary" name="add_admin">Submit</button>
                     <?php endif; ?>
                 </form>
             </section>
