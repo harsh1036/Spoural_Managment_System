@@ -31,6 +31,13 @@ $dept_id = $ulsc['dept_id'];
 $ulsc_name = htmlspecialchars($ulsc['ulsc_name']);
 $dept_name = htmlspecialchars($ulsc['dept_name']);
 
+// Fetch academic years from the database
+$academicYears = [];
+$yearQuery = $dbh->query("SELECT year FROM academic_years ORDER BY year DESC");
+if ($yearQuery) {
+    $academicYears = $yearQuery->fetchAll(PDO::FETCH_COLUMN);
+}
+
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $event_id = $_POST['event'];
     $student_ids = $_POST['student_id'];
@@ -219,6 +226,18 @@ if (count($events) == 0) {
                 
                 <form action="addculturalevent.php" method="POST" class="participant-form">
                     <div class="form-group">
+
+                        <div style="margin-top: 10px;">
+                            <label for="academicYear" class="form-label">Academic Year: </label>
+                            <select id="academicYear" name="academicYear" class="form-select">
+                            <option value="">Select Acadmic year</option>
+                                <?php foreach ($academicYears as $year): ?>
+                                    <option value="<?= htmlspecialchars($year) ?>"><?= htmlspecialchars($year) ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <br>
+
                         <label for="eventSelect" class="form-label">Select Cultural Event:</label>
                         <select id="eventSelect" name="event" class="form-select" onchange="showParticipantsForm(); console.log('Event changed');" required>
                             <option value="">Select Event...</option>

@@ -34,6 +34,13 @@ if (!isset($_SESSION['login'])) {
 // Fetch session data
 $admin_username = $_SESSION['login'];
 
+// Fetch academic years from the database
+$academicYears = [];
+$yearQuery = $dbh->query("SELECT year FROM academic_years ORDER BY year DESC");
+if ($yearQuery) {
+    $academicYears = $yearQuery->fetchAll(PDO::FETCH_COLUMN);
+}
+
 // Handle delete operation
 if (isset($_GET['delete_id'])) {
     try {
@@ -326,6 +333,15 @@ if (isset($_POST['save_ulsc'])) {
             <div class="content-card">
                 <div class="content-header">
                     <h2><i class='bx bx-football'></i> ULSC</h2>
+
+                    <div style="margin-top: 10px;">
+                        <label for="academicYear">Academic Year: </label>
+                        <select id="academicYear" name="academicYear">
+                            <?php foreach ($academicYears as $year): ?>
+                                <option value="<?= htmlspecialchars($year) ?>"><?= htmlspecialchars($year) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
                 </div>
 
                 <div class="quick-access-grid">

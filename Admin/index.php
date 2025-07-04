@@ -9,7 +9,7 @@ if (isset($_POST['login'])) {
     $password = $_POST['password'];
 
     try {
-    $sql = "SELECT * FROM admin WHERE username = :username AND password = :password";
+    $sql = "SELECT * FROM admins WHERE admin_id = :username AND password = :password";
     $query = $dbh->prepare($sql);
     $query->bindParam(':username', $username, PDO::PARAM_STR);
     $query->bindParam(':password', $password, PDO::PARAM_STR);
@@ -17,8 +17,8 @@ if (isset($_POST['login'])) {
     $user = $query->fetch(PDO::FETCH_ASSOC);
 
     if ($user) {
-        $_SESSION['login'] = $user['username']; // Store username dynamically
-        $_SESSION['admin_id'] = $user['id']; // Store admin ID
+        $_SESSION['login'] = $user['admin_id']; // Store username dynamically
+        $_SESSION['admin_id'] = $user['admin_name']; // Store admin ID
         $_SESSION['session_start'] = time();
         $_SESSION['session_timeout'] = 1800; // 30  minute
         echo "<script>window.location.href='pages/admindashboard.php';</script>";

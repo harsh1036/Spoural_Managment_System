@@ -24,6 +24,13 @@ $expectedColumns = ['event_name', 'event_type', 'min_participants', 'max_partici
 
 $message = "";
 
+// Fetch academic years from the database
+$academicYears = [];
+$yearQuery = $dbh->query("SELECT year FROM academic_years ORDER BY year DESC");
+if ($yearQuery) {
+    $academicYears = $yearQuery->fetchAll(PDO::FETCH_COLUMN);
+}
+
 // Handle download template
 if (isset($_GET['download_template'])) {
     require_once 'SimpleXLSXGen.php';
@@ -176,6 +183,15 @@ if (isset($_POST['import'])) {
             <div class="content-card">
                 <div class="content-header">
                     <h2><i class='bx bx-calendar-event'></i> Events</h2>
+
+                    <div style="margin-top: 10px;">
+                        <label for="academicYear">Academic Year: </label>
+                        <select id="academicYear" name="academicYear">
+                            <?php foreach ($academicYears as $year): ?>
+                                <option value="<?= htmlspecialchars($year) ?>"><?= htmlspecialchars($year) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
                 </div>
 
                 <div class="quick-access-grid">

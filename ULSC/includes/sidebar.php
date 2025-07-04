@@ -55,6 +55,12 @@ if (isset($_GET['logout'])) {
                     <span class="links_name">View Cultural Entries</span>
                 </a>
             </li>
+            <li>
+                <a href="certificate.php" class="<?php echo basename($_SERVER['PHP_SELF']) == 'viewculturalevent.php' ? 'active' : ''; ?>">
+                    <i class='bx bx-list-ul'></i>
+                    <span class="links_name">Certificate</span>
+                </a>
+            </li>
             
         </ul>
     </div>

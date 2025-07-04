@@ -378,7 +378,15 @@ try {
                     <div class="text">Add Students</div>
                 </a>
             </div>
-            
+
+            <!-- New single card below the row -->
+            <a href="addacadmicyear.php" class="action-button" style="max-width: 350px; margin: 10px auto; display: flex; align-items: center;">
+                <div class="icon" style="margin-right: 16px; background: var(--primary-color); color: white;">
+                    <i class='bx bxs-building-house'></i>
+                </div>
+                <div class="text" style="font-size: 20px; font-weight: 600; color: var(--text-primary);">Add Academic Year</div>
+            </a>
+
             <!-- <div class="recent-events-card">
                 <h3>Recent Events</h3>
                 <?php if ($recent_events && $recent_events->num_rows > 0): ?>
