@@ -22,19 +22,22 @@ if (!file_exists($template_path)) {
     die("No certificate template found. Please upload one.");
 }
 
+$user_dept = $_SESSION['department']; // e.g., "CSPIT-CE"
+
+
 // Fetch participants and their details
 $sql = "SELECT p.*, s.student_name AS student_name, e.event_name AS event_name, d.dept_name AS department_name
         FROM participants p
         JOIN student s ON s.student_id = CAST(p.student_id AS UNSIGNED)
         JOIN events e ON p.event_id = e.id
         LEFT JOIN departments d ON p.dept_id = d.dept_id
-        WHERE p.event_id = ?";
+        WHERE p.event_id = ? AND d.dept_name = ?";
 $stmt = $conn->prepare($sql);
 if (!$stmt) {
     ob_end_clean(); // Clean the output buffer
     die("Prepare failed: " . $conn->error);
 }
-$stmt->bind_param("i", $event_id);
+$stmt->bind_param("is", $event_id, $user_dept);
 $stmt->execute();
 $result = $stmt->get_result();
 $participants = [];
