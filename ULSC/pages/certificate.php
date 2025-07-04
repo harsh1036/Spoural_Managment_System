@@ -50,6 +50,7 @@ while ($row = $res->fetch_assoc()) $events[] = $row;
 <div class="home-content">
     <div class="container" style="max-width:700px;margin:40px auto;">
         <h2>Upload Certificate Template</h2>
+        <br>
         <?php if ($upload_message): ?>
             <div class="alert alert-info"><?php echo htmlspecialchars($upload_message); ?></div>
         <?php endif; ?>
@@ -63,16 +64,20 @@ while ($row = $res->fetch_assoc()) $events[] = $row;
                     <?php endforeach; ?>
                 </select>
             </div>
+            <br>
             <div class="mb-3">
                 <label>Certificate Template (PDF/JPG/PNG):</label>
                 <input type="file" name="template" accept=".pdf,.jpg,.jpeg,.png" required>
             </div>
+            <br>
             <button type="submit" name="upload_template" class="btn btn-primary">Upload Template</button>
         </form>
-
+        <br>
         <hr>
+        <br>
 
         <h2>Download Certificates</h2>
+        <br>
         <form method="get" action="download_certificates.php">
             <div class="mb-3">
                 <label>Select Event:</label>
@@ -83,6 +88,7 @@ while ($row = $res->fetch_assoc()) $events[] = $row;
                     <?php endforeach; ?>
                 </select>
             </div>
+            <br>
             <button type="submit" class="btn btn-success">Download Certificates</button>
         </form>
     </div>
