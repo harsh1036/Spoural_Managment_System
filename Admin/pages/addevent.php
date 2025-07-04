@@ -17,24 +17,36 @@ if (!isset($_SESSION['login'])) {
 $admin_username = $_SESSION['login'];
 
 // Initialize variables
-$event_id = $event_name = $event_type = $min_participants = $max_participants = "";
+$event_id = $event_name = $event_type = $min_participants = $max_participants = $academic_year_id = "";
 
-// Define the correct column headers
+// Define the correct column headers for Excel import
 $expectedColumns = ['event_name', 'event_type', 'min_participants', 'max_participants'];
 
 $message = "";
 
 // Fetch academic years from the database
 $academicYears = [];
-$yearQuery = $dbh->query("SELECT year FROM academic_years ORDER BY year DESC");
+// Fetch both ID and year for the dropdown and internal use
+$yearQuery = $dbh->query("SELECT id, year FROM academic_years ORDER BY year DESC");
 if ($yearQuery) {
-    $academicYears = $yearQuery->fetchAll(PDO::FETCH_COLUMN);
+    $academicYears = $yearQuery->fetchAll(PDO::FETCH_ASSOC);
 }
+
+// Determine the currently selected academic year for filtering and form pre-population
+$currentAcademicYearId = null;
+if (isset($_GET['academic_year_id'])) {
+    $currentAcademicYearId = $_GET['academic_year_id'];
+} else {
+    // Set a default academic year (e.g., the latest one) if no academic_year_id is in GET
+    if (!empty($academicYears)) {
+        $currentAcademicYearId = $academicYears[0]['id']; 
+    }
+}
+
 
 // Handle download template
 if (isset($_GET['download_template'])) {
-    require_once 'SimpleXLSXGen.php';
-    
+    // The template does not include academic_year_id as it's selected on the form
     $data = [
         ['event_name', 'event_type', 'min_participants', 'max_participants'], // Column headers
     ];
@@ -47,12 +59,14 @@ if (isset($_GET['download_template'])) {
 if (isset($_GET['delete_id'])) {
     try {
         $delete_id = $_GET['delete_id'];
+        $current_year_for_redirect = isset($_GET['academic_year_id']) ? $_GET['academic_year_id'] : $currentAcademicYearId;
+
         $sql = "DELETE FROM events WHERE id = :id";
         $stmt = $dbh->prepare($sql);
         $stmt->bindParam(':id', $delete_id, PDO::PARAM_INT);
         
         if ($stmt->execute()) {
-            echo "<script>alert('Event deleted successfully!'); window.location.href='addevent.php';</script>";
+            echo "<script>alert('Event deleted successfully!'); window.location.href='addevent.php?academic_year_id=" . htmlspecialchars($current_year_for_redirect) . "';</script>";
         } else {
             echo "<script>alert('Error deleting event!');</script>";
         }
@@ -76,29 +90,32 @@ if (isset($_GET['edit_id'])) {
             $event_type = $event['event_type'];
             $min_participants = $event['min_participants'];
             $max_participants = $event['max_participants'];
+            $academic_year_id = $event['academic_year_id']; // Fetch academic_year_id
+            $currentAcademicYearId = $academic_year_id; // Set current selected year to the event's year for the dropdown
         }
     } catch (PDOException $e) {
         echo "<script>alert('Database error: " . $e->getMessage() . "');</script>";
     }
 }
 
-// Handle form submission
+// Handle form submission (Add/Update Event)
 if (isset($_POST['save_event'])) {
     $event_name = $_POST['event_name'];
     $event_type = $_POST['event_type'];
     $min_participants = $_POST['min_participants'];
     $max_participants = $_POST['max_participants'];
     $event_id = $_POST['event_id'];
+    $academic_year_id = $_POST['academic_year_id']; // Get academic year from form
 
     try {
         if (!empty($event_id)) {
             // Update existing event
-            $sql = "UPDATE events SET event_name = :name, event_type = :type, min_participants = :min, max_participants = :max WHERE id = :id";
+            $sql = "UPDATE events SET event_name = :name, event_type = :type, min_participants = :min, max_participants = :max, academic_year_id = :academic_year_id WHERE id = :id";
             $stmt = $dbh->prepare($sql);
             $stmt->bindParam(':id', $event_id, PDO::PARAM_INT);
         } else {
             // Insert new event
-            $sql = "INSERT INTO events (event_name, event_type, min_participants, max_participants) VALUES (:name, :type, :min, :max)";
+            $sql = "INSERT INTO events (event_name, event_type, min_participants, max_participants, academic_year_id) VALUES (:name, :type, :min, :max, :academic_year_id)";
             $stmt = $dbh->prepare($sql);
         }
 
@@ -106,9 +123,10 @@ if (isset($_POST['save_event'])) {
         $stmt->bindParam(':type', $event_type, PDO::PARAM_STR);
         $stmt->bindParam(':min', $min_participants, PDO::PARAM_INT);
         $stmt->bindParam(':max', $max_participants, PDO::PARAM_INT);
+        $stmt->bindParam(':academic_year_id', $academic_year_id, PDO::PARAM_INT);
 
         if ($stmt->execute()) {
-            echo "<script>alert('Event saved successfully!'); window.location.href='addevent.php';</script>";
+            echo "<script>alert('Event saved successfully!'); window.location.href='addevent.php?academic_year_id=" . htmlspecialchars($academic_year_id) . "';</script>";
         } else {
             echo "<script>alert('Error saving event!');</script>";
         }
@@ -117,8 +135,11 @@ if (isset($_POST['save_event'])) {
     }
 }
 
-// Handle file upload and validation
+// Handle file upload and validation for multiple events
 if (isset($_POST['import'])) {
+    // Get the selected academic year for imported events
+    $selected_academic_year_id = $_POST['import_academic_year_id'];
+
     if ($_FILES['excel_file']['error'] == UPLOAD_ERR_OK) {
         $file = $_FILES['excel_file']['tmp_name'];
         
@@ -126,38 +147,47 @@ if (isset($_POST['import'])) {
             $rows = $xlsx->rows();
             
             // Validate column names
-            if ($rows[0] !== $expectedColumns) {
-                echo "<script>alert('Error: Column names do not match the expected format!'); window.location.href='addevent.php';</script>";
+            if (empty($rows) || $rows[0] !== $expectedColumns) { // Added empty($rows) check
+                echo "<script>alert('Error: Column names in the Excel file do not match the expected format (event_name, event_type, min_participants, max_participants) or file is empty!'); window.location.href='addevent.php?academic_year_id=" . htmlspecialchars($selected_academic_year_id) . "';</script>";
                 exit;
             } else {
                 try {
+                    $dbh->beginTransaction(); // Start transaction for bulk insert
                     foreach (array_slice($rows, 1) as $row) {
+                        // Basic validation for row data (e.g., check if values are present)
+                        if (count($row) < 4 || empty($row[0])) { // Ensure enough columns and event_name is not empty
+                            continue; // Skip invalid rows
+                        }
+
                         $event_name = $row[0]; 
                         $event_type = $row[1]; 
                         $min_participants = $row[2]; 
                         $max_participants = $row[3];
 
-                        $sql = "INSERT INTO events (event_name, event_type, min_participants, max_participants) VALUES (:name, :type, :min, :max)";
+                        $sql = "INSERT INTO events (event_name, event_type, min_participants, max_participants, academic_year_id) VALUES (:name, :type, :min, :max, :academic_year_id)";
                         $stmt = $dbh->prepare($sql);
                         $stmt->bindParam(':name', $event_name, PDO::PARAM_STR);
                         $stmt->bindParam(':type', $event_type, PDO::PARAM_STR);
                         $stmt->bindParam(':min', $min_participants, PDO::PARAM_INT);
                         $stmt->bindParam(':max', $max_participants, PDO::PARAM_INT);
+                        $stmt->bindParam(':academic_year_id', $selected_academic_year_id, PDO::PARAM_INT); // Use the selected academic year ID
                         $stmt->execute();
                     }
-                    echo "<script>alert('Data imported successfully!'); window.location.href='addevent.php';</script>";
+                    $dbh->commit(); // Commit transaction
+                    echo "<script>alert('Data imported successfully!'); window.location.href='addevent.php?academic_year_id=" . htmlspecialchars($selected_academic_year_id) . "';</script>";
                     exit;
                 } catch (PDOException $e) {
-                    echo "<script>alert('Database error: " . addslashes($e->getMessage()) . "'); window.location.href='addevent.php';</script>";
+                    $dbh->rollBack(); // Rollback on error
+                    echo "<script>alert('Database error during import: " . addslashes($e->getMessage()) . "'); window.location.href='addevent.php?academic_year_id=" . htmlspecialchars($selected_academic_year_id) . "';</script>";
                     exit;
                 }
             }
         } else {
-            echo "<script>alert('Failed to parse Excel file!'); window.location.href='addevent.php';</script>";
+            echo "<script>alert('Failed to parse Excel file! Please ensure it's a valid .xlsx file.'); window.location.href='addevent.php?academic_year_id=" . htmlspecialchars($selected_academic_year_id) . "';</script>";
             exit;
         }
     } else {
-        echo "<script>alert('Error uploading file!'); window.location.href='addevent.php';</script>";
+        echo "<script>alert('Error uploading file! Please try again. Error code: " . $_FILES['excel_file']['error'] . "'); window.location.href='addevent.php?academic_year_id=" . htmlspecialchars($selected_academic_year_id) . "';</script>";
         exit;
     }
 }
@@ -185,10 +215,12 @@ if (isset($_POST['import'])) {
                     <h2><i class='bx bx-calendar-event'></i> Events</h2>
 
                     <div style="margin-top: 10px;">
-                        <label for="academicYear">Academic Year: </label>
-                        <select id="academicYear" name="academicYear">
-                            <?php foreach ($academicYears as $year): ?>
-                                <option value="<?= htmlspecialchars($year) ?>"><?= htmlspecialchars($year) ?></option>
+                        <label for="academicYearSelect">Academic Year: </label>
+                        <select id="academicYearSelect" name="academicYearSelect" onchange="filterEventsByAcademicYear()">
+                            <?php foreach ($academicYears as $yearData): ?>
+                                <option value="<?= htmlspecialchars($yearData['id']) ?>" <?= ($currentAcademicYearId == $yearData['id']) ? 'selected' : '' ?>>
+                                    <?= htmlspecialchars($yearData['year']) ?>
+                                </option>
                             <?php endforeach; ?>
                         </select>
                     </div>
@@ -217,22 +249,23 @@ if (isset($_POST['import'])) {
                     <section class="event-form">
                         <h3 class="mb-4"><?= isset($_GET['edit_id']) ? 'Edit Event' : 'New Event' ?></h3>
                         <form method="post" action="addevent.php" class="event-input-form">
-                            <input type="hidden" name="event_id" value="<?= isset($_GET['edit_id']) ? htmlspecialchars($_GET['edit_id']) : '' ?>">
+                            <input type="hidden" name="event_id" value="<?= htmlspecialchars($event_id) ?>">
+                            <input type="hidden" name="academic_year_id" id="formAcademicYearId" value="<?= htmlspecialchars($currentAcademicYearId) ?>">
 
                             <div class="form-group mb-3">
                                 <label class="form-label">Event Name:</label>
-                                <input type="text" name="event_name" class="form-control" value="" required>
+                                <input type="text" name="event_name" class="form-control" value="<?= htmlspecialchars($event_name) ?>" required>
                             </div>
 
                             <div class="form-group mb-3">
                                 <label class="form-label">Event Type:</label>
                                 <div class="d-flex gap-4">
                                     <div class="form-check">
-                                        <input type="radio" name="event_type" value="Sports" class="form-check-input" required>
+                                        <input type="radio" name="event_type" value="Sports" class="form-check-input" <?= ($event_type === 'Sports') ? 'checked' : '' ?> required>
                                         <label class="form-check-label">Sports</label>
                                     </div>
                                     <div class="form-check">
-                                        <input type="radio" name="event_type" value="Cultural" class="form-check-input" required>
+                                        <input type="radio" name="event_type" value="Cultural" class="form-check-input" <?= ($event_type === 'Cultural') ? 'checked' : '' ?> required>
                                         <label class="form-check-label">Cultural</label>
                                     </div>
                                 </div>
@@ -240,12 +273,12 @@ if (isset($_POST['import'])) {
 
                             <div class="form-group mb-3">
                                 <label class="form-label">Min Participants:</label>
-                                <input type="number" name="min_participants" class="form-control" value="" required>
+                                <input type="number" name="min_participants" class="form-control" value="<?= htmlspecialchars($min_participants) ?>" required>
                             </div>
                             
                             <div class="form-group mb-4">
                                 <label class="form-label">Max Participants:</label>
-                                <input type="number" name="max_participants" class="form-control" value="" required>
+                                <input type="number" name="max_participants" class="form-control" value="<?= htmlspecialchars($max_participants) ?>" required>
                             </div>
 
                             <div class="form-group">
@@ -255,7 +288,7 @@ if (isset($_POST['import'])) {
                     </section>
                     <br><br>
                     <section class="event-table">
-                        <h3>View Events</h3>
+                        <h3>View Events for Selected Academic Year</h3>
                         <table class="styled-table">
                             <thead>
                                 <tr>
@@ -270,34 +303,47 @@ if (isset($_POST['import'])) {
                             </thead>
                             <tbody>
                                 <?php 
-                                $query = $dbh->prepare("SELECT * FROM events ORDER BY id DESC");
-                                $query->execute();
-                                $events = $query->fetchAll(PDO::FETCH_ASSOC);
-                                foreach ($events as $event) { 
+                                // Fetch events for the selected academic year
+                                $events = [];
+                                if ($currentAcademicYearId) {
+                                    $query = $dbh->prepare("SELECT id, event_name, event_type, min_participants, max_participants FROM events WHERE academic_year_id = :academic_year_id ORDER BY id DESC");
+                                    $query->bindParam(':academic_year_id', $currentAcademicYearId, PDO::PARAM_INT);
+                                    $query->execute();
+                                    $events = $query->fetchAll(PDO::FETCH_ASSOC);
+                                }
+                                
+                                if (empty($events)) {
+                                    echo "<tr><td colspan='7'>No events found for this academic year.</td></tr>";
+                                } else {
+                                    foreach ($events as $event) { 
+                                    ?>
+                                    <tr>
+                                        <td><?= $event['id'] ?></td>
+                                        <td><?= htmlspecialchars($event['event_name']) ?></td>
+                                        <td><?= htmlspecialchars($event['event_type']) ?></td>
+                                        <td><?= htmlspecialchars($event['min_participants']) ?></td>
+                                        <td><?= htmlspecialchars($event['max_participants']) ?></td>
+                                        <td>
+                                            <a href="#" class="edit-event btn btn-sm btn-primary" 
+                                               data-id="<?= $event['id'] ?>"
+                                               data-name="<?= htmlspecialchars($event['event_name']) ?>"
+                                               data-type="<?= htmlspecialchars($event['event_type']) ?>"
+                                               data-min="<?= htmlspecialchars($event['min_participants']) ?>"
+                                               data-max="<?= htmlspecialchars($event['max_participants']) ?>"
+                                               data-academic-year-id="<?= htmlspecialchars($currentAcademicYearId) ?>">
+                                                <i class='bx bx-edit'></i> Edit
+                                            </a>
+                                        </td>
+                                        <td>
+                                            <a href="addevent.php?delete_id=<?= $event['id'] ?>&academic_year_id=<?= htmlspecialchars($currentAcademicYearId) ?>" class="btn btn-sm btn-danger" onclick="return confirm('Are you sure?')">
+                                                <i class='bx bx-trash'></i> Delete
+                                            </a>
+                                        </td>
+                                    </tr>
+                                    <?php 
+                                    }
+                                }
                                 ?>
-                                <tr>
-                                    <td><?= $event['id'] ?></td>
-                                    <td><?= htmlspecialchars($event['event_name']) ?></td>
-                                    <td><?= htmlspecialchars($event['event_type']) ?></td>
-                                    <td><?= htmlspecialchars($event['min_participants']) ?></td>
-                                    <td><?= htmlspecialchars($event['max_participants']) ?></td>
-                                    <td>
-                                        <a href="#" class="edit-event btn btn-sm btn-primary" 
-                                           data-id="<?= $event['id'] ?>"
-                                           data-name="<?= htmlspecialchars($event['event_name']) ?>"
-                                           data-type="<?= htmlspecialchars($event['event_type']) ?>"
-                                           data-min="<?= htmlspecialchars($event['min_participants']) ?>"
-                                           data-max="<?= htmlspecialchars($event['max_participants']) ?>">
-                                            <i class='bx bx-edit'></i> Edit
-                                        </a>
-                                    </td>
-                                    <td>
-                                        <a href="addevent.php?delete_id=<?= $event['id'] ?>" class="btn btn-sm btn-danger" onclick="return confirm('Are you sure?')">
-                                            <i class='bx bx-trash'></i> Delete
-                                        </a>
-                                    </td>
-                                </tr>
-                                <?php } ?>
                             </tbody>
                         </table>
                     </section>
@@ -319,6 +365,8 @@ if (isset($_POST['import'])) {
                                             <i class='bx bx-download'></i> Download Template
                                         </a>
                                         <form method="POST" enctype="multipart/form-data">
+                                            <input type="hidden" name="import_academic_year_id" id="importAcademicYearId" value="<?= htmlspecialchars($currentAcademicYearId) ?>">
+
                                             <div class="mb-3">
                                                 <label for="excel_file" class="form-label">Upload Excel File (.xlsx)</label>
                                                 <input type="file" class="form-control" id="excel_file" name="excel_file" accept=".xlsx" required>
@@ -336,26 +384,18 @@ if (isset($_POST['import'])) {
                     </div>
                 </div>
             </div>
-
-            <!-- <div class="content-card">
-                <div class="content-header">
-                    <h2><i class='bx bx-info-circle'></i> Event Information</h2>
-                </div>
-                <div class="card-content">
-                    <p>Use the options above to manage events. You can:</p>
-                    <ul>
-                        <li>View the list of events</li>
-                        <li>Manage event details</li>
-                        <li>View all event information at once</li>
-                    </ul>
-                </div>
-            </div> -->
         </div>
     </div>
 
     <?php include_once('../includes/footer.php'); ?>
 
     <script>
+        // Function to filter events by academic year
+        function filterEventsByAcademicYear() {
+            const selectedAcademicYearId = document.getElementById('academicYearSelect').value;
+            window.location.href = `addevent.php?academic_year_id=${selectedAcademicYearId}`;
+        }
+
         function toggleContent(contentId) {
             const content = document.getElementById(contentId);
             const otherContent = contentId === 'singleEventContent' ? 
@@ -366,18 +406,36 @@ if (isset($_POST['import'])) {
                 content.style.display = 'block';
                 otherContent.style.display = 'none';
             } else {
-                content.style.display = 'none';
+                // If it's already visible, you might want to hide it, or do nothing.
+                // For this scenario, we want to always show the selected content.
+                // If you intend to toggle off if clicked again, change this else block.
+                // For now, it will just ensure the other is hidden.
+                otherContent.style.display = 'none'; 
             }
         }
 
         document.getElementById('singleEventBtn').addEventListener('click', function(e) {
             e.preventDefault();
             toggleContent('singleEventContent');
+            // Ensure the hidden academic_year_id in the single event form is updated
+            document.getElementById('formAcademicYearId').value = document.getElementById('academicYearSelect').value;
+
+            // Reset single event form fields when switching to it, unless in edit mode
+            if (document.querySelector('input[name="event_id"]').value === '') {
+                document.querySelector('input[name="event_name"]').value = '';
+                document.querySelectorAll('input[name="event_type"]').forEach(radio => radio.checked = false);
+                document.querySelector('input[name="min_participants"]').value = '';
+                document.querySelector('input[name="max_participants"]').value = '';
+                document.querySelector('.event-form h3').textContent = 'New Event';
+                document.querySelector('button[name="save_event"]').textContent = 'Submit';
+            }
         });
 
         document.getElementById('multipleEventBtn').addEventListener('click', function(e) {
             e.preventDefault();
             toggleContent('multipleEventContent');
+            // Ensure the hidden academic_year_id for import is updated
+            document.getElementById('importAcademicYearId').value = document.getElementById('academicYearSelect').value;
         });
 
         // Handle edit button clicks
@@ -391,6 +449,7 @@ if (isset($_POST['import'])) {
                 const type = this.getAttribute('data-type');
                 const min = this.getAttribute('data-min');
                 const max = this.getAttribute('data-max');
+                const academicYearId = this.getAttribute('data-academic-year-id'); // Get academic year ID
 
                 // Populate the form fields
                 document.querySelector('input[name="event_id"]').value = id;
@@ -405,6 +464,7 @@ if (isset($_POST['import'])) {
 
                 document.querySelector('input[name="min_participants"]').value = min;
                 document.querySelector('input[name="max_participants"]').value = max;
+                document.getElementById('formAcademicYearId').value = academicYearId; // Set hidden academic year ID
 
                 // Update form title and button
                 document.querySelector('.event-form h3').textContent = 'Edit Event';
@@ -414,9 +474,42 @@ if (isset($_POST['import'])) {
                 document.getElementById('singleEventContent').style.display = 'block';
                 document.getElementById('multipleEventContent').style.display = 'none';
 
+                // Ensure the academic year dropdown also reflects the event's academic year when editing
+                document.getElementById('academicYearSelect').value = academicYearId;
+
                 // Scroll to form
                 document.querySelector('.event-form').scrollIntoView({ behavior: 'smooth' });
             });
+        });
+
+        // Set the academic year dropdown based on URL parameter or default on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const academicYearIdParam = urlParams.get('academic_year_id');
+            const academicYearSelect = document.getElementById('academicYearSelect');
+            
+            if (academicYearIdParam) {
+                academicYearSelect.value = academicYearIdParam;
+            } else if (academicYearSelect.options.length > 0 && academicYearSelect.value === '') {
+                // If no param and no default value set by PHP (unlikely with $currentAcademicYearId),
+                // select the first academic year by default.
+                academicYearSelect.value = academicYearSelect.options[0].value;
+            }
+
+            // Initially set the hidden academic year IDs for the forms
+            document.getElementById('formAcademicYearId').value = academicYearSelect.value;
+            document.getElementById('importAcademicYearId').value = academicYearSelect.value;
+
+            // Determine which content section to show on page load
+            if (urlParams.has('edit_id')) {
+                // If an edit ID is present, always show the single event form
+                document.getElementById('singleEventContent').style.display = 'block';
+                document.getElementById('multipleEventContent').style.display = 'none';
+            } else {
+                // By default, hide both until a quick access card is clicked
+                document.getElementById('singleEventContent').style.display = 'none';
+                document.getElementById('multipleEventContent').style.display = 'none';
+            }
         });
     </script>
 </body>
