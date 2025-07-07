@@ -394,7 +394,7 @@ foreach ($academicYears as $year) {
                             <select id="academicYear" name="academic_year_id" class="form-select" onchange="this.form.submit();">
                                 <option value="">Select Academic year</option>
                                 <?php foreach ($academicYears as $year):
-                                    // Check if this academic year is the determined current one
+                                    // Check if this academic year is the determined current
                                     $isDisabled = ($year['id'] != $currentAcademicYearId) ? 'disabled' : '';
                                     
                                     // Keep the existing selection logic for when a year is already chosen (e.g., from a form submission)
