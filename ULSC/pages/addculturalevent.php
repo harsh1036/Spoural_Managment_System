@@ -260,7 +260,7 @@ if ($currentMonth >= 6) { // If current month is June (6) or later (July, Aug...
 $currentAcademicYearId = null; // Initialize to null
 
 foreach ($academicYears as $year) {
-    // Assuming $year['year'] contains values like '2024-25'
+    // Assuming $year['year'] contains values like "2024-25"
     if ($year['year'] === $currentAcademicYearIdentifier) {
         $currentAcademicYearId = $year['id'];
         break; // Found it, no need to continue looping
