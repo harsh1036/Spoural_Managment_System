@@ -240,6 +240,33 @@ if (
         exit;
     }
 }
+
+// Get current date components
+$currentMonth = date('n'); // Numeric representation of a month (1-12)
+$currentYear = date('Y');   // Current four-digit year (e.g., 2025)
+
+$currentAcademicYearIdentifier = ''; // This will be like '2024-25'
+
+// Determine the academic year string based on the current month and year
+if ($currentMonth >= 6) { // If current month is June (6) or later (July, Aug... Dec)
+    // Example: For July 2025, academic year is 2025-26
+    $currentAcademicYearIdentifier = $currentYear . '-' . substr(($currentYear + 1), 2, 2);
+} else { // If current month is January (1) to May (5)
+    // Example: For February 2025, academic year is 2024-25
+    $currentAcademicYearIdentifier = ($currentYear - 1) . '-' . substr($currentYear, 2, 2);
+}
+
+// Now, loop through your $academicYears data to find the matching ID
+$currentAcademicYearId = null; // Initialize to null
+
+foreach ($academicYears as $year) {
+    // Assuming $year['year'] contains values like '2024-25'
+    if ($year['year'] === $currentAcademicYearIdentifier) {
+        $currentAcademicYearId = $year['id'];
+        break; // Found it, no need to continue looping
+    }
+}
+
 ?>
 
 <!DOCTYPE html>
@@ -268,13 +295,19 @@ if (
 
                 <form action="addculturalevent.php" method="POST" class="participant-form" id="mainEntryForm">
                     <div class="form-group">
-                        <div style="margin-top: 10px;">
+                         <div style="margin-top: 10px;">
                             <label for="academicYear" class="form-label">Academic Year: </label>
 
                             <select id="academicYear" name="academic_year_id" class="form-select" onchange="this.form.submit();">
                                 <option value="">Select Academic year</option>
-                                <?php foreach ($academicYears as $year): ?>
-                                    <option value="<?= $year['id'] ?>" <?= ($academic_year_id == $year['id']) ? 'selected' : '' ?>>
+                                <?php foreach ($academicYears as $year):
+                                    // Check if this academic year is the determined current one
+                                    $isDisabled = ($year['id'] != $currentAcademicYearId) ? 'disabled' : '';
+                                    
+                                    // Keep the existing selection logic for when a year is already chosen (e.g., from a form submission)
+                                    $isSelected = ($academic_year_id == $year['id']) ? 'selected' : '';
+                                ?>
+                                    <option value="<?= $year['id'] ?>" <?= $isSelected ?> <?= $isDisabled ?>>
                                         <?= htmlspecialchars($year['year']) ?>
                                     </option>
                                 <?php endforeach; ?>
