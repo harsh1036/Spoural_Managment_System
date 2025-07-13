@@ -242,6 +242,7 @@ if (isset($_POST['save_department'])) {
                             </thead>
                             <tbody>
                                 <?php 
+                                $query = $dbh->prepare("SELECT d.*, ay.year AS academic_year FROM departments d LEFT JOIN academic_years ay ON d.academic_year_id = ay.id ORDER BY d.dept_id DESC");
                                 $query = $dbh->prepare("SELECT d.*, ay.year AS academic_year FROM departments d LEFT JOIN academic_years ay ON d.academic_years = ay.id ORDER BY d.dept_id DESC");
                                 $query->execute();
                                 $departments = $query->fetchAll(PDO::FETCH_ASSOC);
