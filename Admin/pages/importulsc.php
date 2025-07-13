@@ -6,17 +6,24 @@ require 'SimpleXLSX.php'; // Ensure this file exists
 use Shuchkin\SimpleXLSX;
 use Shuchkin\SimpleXLSXGen;
 
-// Define the correct column headers
-$expectedColumns = ['ulsc_id', 'ulsc_name', 'dept_id', 'contact'];
+// Fetch column names dynamically from the ulsc table
+$columns = [];
+$result = $conn->query("SHOW COLUMNS FROM ulsc");
+while ($row = $result->fetch_assoc()) {
+    $columns[] = $row['Field'];
+}
 
 $message = "";
 
 // Function to generate and download the Excel template
 if (isset($_GET['download_template'])) {
-    $data = [
-        $expectedColumns, // Column headers
-    ];
-    $xlsx = SimpleXLSXGen::fromArray($data);
+    echo 'DEBUG: Download template triggered.<br>';
+    echo '<pre>';
+    print_r($columns);
+    echo '</pre>';
+    // Remove the above 3 lines after debugging
+    $data = [ $columns ]; // Column headers
+    $xlsx = Shuchkin\SimpleXLSXGen::fromArray($data);
     $xlsx->downloadAs('ULSC_Template.xlsx');
     exit;
 }
@@ -25,27 +32,27 @@ if (isset($_GET['download_template'])) {
 if (isset($_POST['import'])) {
     if ($_FILES['excel_file']['error'] == UPLOAD_ERR_OK) {
         $file = $_FILES['excel_file']['tmp_name'];
-        
         if ($xlsx = SimpleXLSX::parse($file)) {
             $rows = $xlsx->rows();
-            
-            // Validate column names
-            if ($rows[0] !== $expectedColumns) {
-                $message = "<div class='alert alert-danger'>Error: Column names do not match the expected format!</div>";
+            $headers = $rows[0];
+            // Validate: all headers must exist in $columns
+            $missing = array_diff($headers, $columns);
+            if ($missing) {
+                $message = "<div class='alert alert-danger'>Error: Column names do not match the expected format! Missing: ".implode(', ', $missing)."</div>";
             } else {
                 foreach (array_slice($rows, 1) as $row) {
-                    $ulsc_id = $row[0]; 
-                    $ulsc_name = $row[1]; 
-                    $dept_id = $row[2]; 
-                    $contact = $row[3];
-
-                    $sql = "INSERT INTO ulsc (ulsc_id, ulsc_name, dept_id, contact) VALUES (?, ?, ?, ?)";
+                    $data = array_combine($headers, $row);
+                    // Build SQL dynamically
+                    $fields = implode(", ", array_keys($data));
+                    $placeholders = rtrim(str_repeat('?,', count($data)), ',');
+                    $sql = "INSERT INTO ulsc ($fields) VALUES ($placeholders)";
                     $stmt = $conn->prepare($sql);
                     if (!$stmt) {
                         $message = "<div class='alert alert-danger'>SQL Error: " . $conn->error . "</div>";
                         break;
                     }
-                    $stmt->bind_param("isii", $ulsc_id, $ulsc_name, $dept_id, $contact);
+                    $types = str_repeat('s', count($data));
+                    $stmt->bind_param($types, ...array_values($data));
                     $stmt->execute();
                 }
                 $message = "<div class='alert alert-success'>Data imported successfully!</div>";

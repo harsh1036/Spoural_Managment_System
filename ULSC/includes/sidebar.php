@@ -1,7 +1,27 @@
 <?php
+// Start session if not already started
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 
 // Fetch session data
 $admin_username = $_SESSION['login'];
+
+// Fetch department name for ULSC user if not already set
+if (!isset($dept_name)) {
+    // You may need to include your config file for DB connection
+    include_once __DIR__ . '/config.php';
+    if (isset($_SESSION['ulsc_id'])) {
+        $ulsc_id = $_SESSION['ulsc_id'];
+        $query = $dbh->prepare("SELECT d.dept_name FROM ulsc u JOIN departments d ON u.dept_id = d.dept_id WHERE u.ulsc_id = :ulsc_id");
+        $query->bindParam(':ulsc_id', $ulsc_id, PDO::PARAM_STR);
+        $query->execute();
+        $row = $query->fetch(PDO::FETCH_ASSOC);
+        $dept_name = $row ? $row['dept_name'] : 'Department';
+    } else {
+        $dept_name = 'Department';
+    }
+}
 
 // Handle logout
 if (isset($_GET['logout'])) {
@@ -55,13 +75,7 @@ if (isset($_GET['logout'])) {
                     <span class="links_name">View Cultural Entries</span>
                 </a>
             </li>
-            <li>
-                <a href="certificate.php" class="<?php echo basename($_SERVER['PHP_SELF']) == 'viewculturalevent.php' ? 'active' : ''; ?>">
-                    <i class='bx bx-list-ul'></i>
-                    <span class="links_name">Certificate</span>
-                </a>
-            </li>
-            
+           
         </ul>
     </div>
 
@@ -81,7 +95,9 @@ if (isset($_GET['logout'])) {
                     <img src="../assets/images/ulsc.png" alt="Logo 2" title="ULSC">
                 </div>
             </div>
-
+            <div>
+            <span class="dept-badge"><?php echo htmlspecialchars($dept_name); ?></span>
+</div>
             <div class="profile-details" id="profileDropdown">
                 <img src="https://t4.ftcdn.net/jpg/00/97/00/09/360_F_97000908_wwH2goIihwrMoeV9QF3BW6HtpsVFaNVM.jpg" alt="profile">
                 <span class="admin_name"><?php echo htmlspecialchars($admin_username); ?></span>

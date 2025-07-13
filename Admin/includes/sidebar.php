@@ -305,31 +305,55 @@ if (isset($_GET['logout'])) {
             <li>
                 <a href="addadmin.php" class="<?php echo $current_page == 'addadmin.php' ? 'active' : ''; ?>">
                     <i class='bx bxs-user-plus'></i>
-                    <span class="links_name">ADD ADMIN</span>
+                    <span class="links_name">Manage ADMIN</span>
                 </a>
             </li>
             <li>
                 <a href="addevent.php" class="<?php echo $current_page == 'addevent.php' || $current_page == 'addsingleevent.php' ? 'active' : ''; ?>">
                     <i class='bx bxs-calendar-plus'></i>
-                    <span class="links_name">ADD Event</span>
+                    <span class="links_name">Manage Event</span>
                 </a>
             </li>
             <li>
-                <a href="addulsc.php" class="<?php echo $current_page == 'addulsc.php' || $current_page == 'addsingleulsc.php' ? 'active' : ''; ?>">
+                <a href="addulsc_s.php" class="<?php echo $current_page == 'addulsc_s.php' || $current_page == 'addsingleulsc.php' ? 'active' : ''; ?>">
                     <i class='bx bxs-group'></i>
-                    <span class="links_name">ADD ULSC</span>
+                    <span class="links_name">Manage ULSC Student</span>
+                </a>
+            </li>
+            <li>
+                <a href="addulsc_f.php" class="<?php echo $current_page == 'addulsc_f.php' || $current_page == 'addsingleulsc.php' ? 'active' : ''; ?>">
+                    <i class='bx bxs-group'></i>
+                    <span class="links_name">Manage ULSC Faculty</span>
                 </a>
             </li>
             <li>
                 <a href="addstudents.php" class="<?php echo $current_page == 'addstudents.php' || $current_page == 'addsinglestudent.php' ? 'active' : ''; ?>">
                     <i class='bx bxs-user-detail'></i>
-                    <span class="links_name">ADD STUDENT</span>
+                    <span class="links_name">Manage STUDENT</span>
                 </a>
             </li>
             <li>
                 <a href="adddepartment.php" class="<?php echo $current_page == 'adddepartment.php' || $current_page == 'addsingledepartment.php' ? 'active' : ''; ?>">
                     <i class='bx bxs-building'></i>
-                    <span class="links_name">ADD DEPARTMENT</span>
+                    <span class="links_name">Manage DEPARTMENT</span>
+                </a>
+            </li>
+            <li>
+                <a href="certificate.php" class="<?php echo basename($_SERVER['PHP_SELF']) == 'certificate.php' ? 'active' : ''; ?>">
+                    <i class='bx bx-list-ul'></i>
+                    <span class="links_name">Certificate</span>
+                </a>
+            </li>
+            <li>
+                <a href="viewsportsevent.php" class="<?php echo basename($_SERVER['PHP_SELF']) == 'viewsportsevent.php' ? 'active' : ''; ?>">
+                    <i class='bx bx-list-ul'></i>
+                    <span class="links_name">View Sport Particapant</span>
+                </a>
+            </li>
+            <li>
+                <a href="viewculturalevent.php" class="<?php echo basename($_SERVER['PHP_SELF']) == 'viewculturalevent.php' ? 'active' : ''; ?>">
+                    <i class='bx bx-list-ul'></i>
+                    <span class="links_name">View Cultural Particapant</span>
                 </a>
             </li>
         </ul>

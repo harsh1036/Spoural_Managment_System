@@ -82,9 +82,13 @@ if (isset($_GET['edit_id'])) {
 
 // Function to generate and download the Excel template
 if (isset($_GET['download_template'])) {
-    $data = [
-        ['ulsc_id', 'ulsc_name', 'dept_id', 'contact'], // Column headers
-    ];
+    // Fetch column names dynamically from the ulsc table using PDO
+    $columns = [];
+    $stmt = $dbh->query("SHOW COLUMNS FROM ulsc");
+    while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+        $columns[] = $row['Field'];
+    }
+    $data = [ $columns ]; // Column headers
     $xlsx = SimpleXLSXGen::fromArray($data);
     $xlsx->downloadAs('ULSC_Template.xlsx');
     exit;
@@ -322,6 +326,50 @@ if (isset($_POST['save_ulsc'])) {
         .d-grid {
             margin-top: 20px;
         }
+    .card-container {
+      display: flex;
+      gap: 2rem;
+      justify-content: center;
+      margin: 2rem 0;
+    }
+    .upload-card {
+      background: #f5f8fa;
+      border-radius: 16px;
+      box-shadow: 0 4px 24px rgba(44, 62, 80, 0.08);
+      padding: 2rem 2.5rem;
+      min-width: 320px;
+      text-align: center;
+      transition: box-shadow 0.2s, background 0.2s;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .upload-card:hover {
+      background: #fff;
+      box-shadow: 0 8px 32px rgba(44, 62, 80, 0.12);
+    }
+    .icon-title-row {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 1rem;
+      margin-bottom: 0.5rem;
+    }
+    .icon-title-row i {
+      font-size: 2.2rem;
+      color: #2236d1;
+    }
+    .card-title {
+      font-size: 1.25rem;
+      font-weight: 600;
+      color: #222;
+    }
+    .card-subtitle {
+      color: #888;
+      font-size: 1rem;
+      margin: 0;
+    }
     </style>
 </head>
 
@@ -344,18 +392,83 @@ if (isset($_POST['save_ulsc'])) {
                     </div>
                 </div>
 
-                <div class="quick-access-grid">
-                    <a href="#" class="quick-access-card" id="singleULSCBtn">
-                        <i class='bx bx-detail'></i>
-                        <h3>ADD Single ULSC</h3>
-                        <p>Add Single ulsc for a specific department</p>
-                    </a>
+                <!-- Move View ULSC Details table here -->
+                <section class="ulsc-table">
+                    <h3>View ULSC Details</h3>
+                    <div class="table-scroll" style="max-height: 400px; overflow-y: auto;">
+                        <table border='2px' class='cntr table table-bordered table-striped small-table participants-table'>
+                            <thead>
+                                <tr>
+                                    <th>Sr.no</th>
+                                    <th>ULSC ID</th>
+                                    <th>ULSC Name</th>
+                                    <th>Department</th>
+                                    <th>Contact Number</th>
+                                    <th>Academic Year</th>
+                                    <th>Edit</th>
+                                    <th>Remove</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php 
+                                $sql = "SELECT ulsc.*, departments.dept_name, ay.year AS academic_year FROM ulsc JOIN departments ON ulsc.dept_id = departments.dept_id LEFT JOIN academic_years ay ON ulsc.academic_year_id = ay.id";
+                                $query = $dbh->prepare($sql);
+                                $query->execute();
+                                $results = $query->fetchAll(PDO::FETCH_ASSOC);
+                                $sr = 1;
+                                foreach ($results as $row) { 
+                                ?>
+                                <tr>
+                                    <td><?= $sr ?></td>
+                                    <td><?= htmlspecialchars($row['ulsc_id']) ?></td>
+                                    <td><?= htmlspecialchars($row['ulsc_name']) ?></td>
+                                    <td><?= htmlspecialchars($row['dept_name']) ?></td>
+                                    <td><?= htmlspecialchars($row['contact']) ?></td>
+                                    <td><?= htmlspecialchars($row['academic_year'] ?? '-') ?></td>
+                                    <td>
+                                        <button type="button" 
+                                                class="edit-ulsc btn btn-sm btn-primary"
+                                                data-id="<?= $row['id'] ?>"
+                                                data-ulsc-id="<?= htmlspecialchars($row['ulsc_id']) ?>"
+                                                data-ulsc-name="<?= htmlspecialchars($row['ulsc_name']) ?>"
+                                                data-dept-id="<?= $row['dept_id'] ?>"
+                                                data-contact="<?= htmlspecialchars($row['contact']) ?>">
+                                            <i class='bx bx-edit'></i> Edit
+                                        </button>
+                                    </td>
+                                    <td>
+                                        <a href="addulsc.php?delete_id=<?= $row['id'] ?>" 
+                                           class="btn btn-sm btn-danger"
+                                           onclick="return confirm('Are you sure you want to delete this ULSC member?')">
+                                            <i class='bx bx-trash'></i> Delete
+                                        </a>
+                                    </td>
+                                </tr>
+                                <?php 
+                                $sr++;
+                                } 
+                                ?>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
 
-                    <a href="#" class="quick-access-card" id="multipleULSCBtn">
-                        <i class='bx bx-list-ul'></i>
-                        <h3>Upload Multiple ULSC</h3>
-                        <p>Add Multiple ulsc for a Multiple department</p>
-                    </a>
+                <!-- Card UI for upload options -->
+                <div class="card-container">
+                    <div class="upload-card" id="singleULSCCard">
+                        <div class="icon-title-row">
+                            <i class='bx bx-detail'></i>
+                            <span class="card-title">ADD Single ULSC</span>
+                        </div>
+                        <p class="card-subtitle">Add Single ulsc for a specific department</p>
+                    </div>
+                    <div class="upload-card" id="multipleULSCCard">
+                        <div class="icon-title-row">
+                            <i class='bx bx-list-ul'></i>
+                            <span class="card-title">Upload Multiple ULSC</span>
+                        </div>
+                        <p class="card-subtitle">Add Multiple ulsc for a Multiple department</p>
+                    </div>
                 </div>
             </div>
 
@@ -407,7 +520,7 @@ if (isset($_POST['save_ulsc'])) {
                         </form>
                     </section>
                     <br><br>
-                    <section class="ulsc-table">
+                    <!-- <section class="ulsc-table">
                         <h3>View ULSC Details</h3>
                         <table class="styled-table">
                             <thead>
@@ -461,7 +574,7 @@ if (isset($_POST['save_ulsc'])) {
                                 ?>
                             </tbody>
                         </table>
-                    </section>
+                    </section> -->
                 </div>
             </div>
 
@@ -563,6 +676,18 @@ if (isset($_POST['save_ulsc'])) {
             });
         });
     </script>
+    <script>
+document.addEventListener('DOMContentLoaded', function() {
+    document.getElementById('singleULSCCard').addEventListener('click', function() {
+        document.getElementById('singleULSCContent').style.display = 'block';
+        document.getElementById('multipleULSCContent').style.display = 'none';
+    });
+    document.getElementById('multipleULSCCard').addEventListener('click', function() {
+        document.getElementById('singleULSCContent').style.display = 'none';
+        document.getElementById('multipleULSCContent').style.display = 'block';
+    });
+});
+</script>
 </body>
 
 </html>

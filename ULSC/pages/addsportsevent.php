@@ -7,12 +7,6 @@ if (!isset($_SESSION['ulsc_id'])) {
     exit;
 }
 
-// Initialize academic_year_id to handle initial page load and form submissions
-$academic_year_id = 0;
-if (isset($_POST['academic_year_id'])) {
-    $academic_year_id = (int)$_POST['academic_year_id'];
-}
-
 // Fetch ULSC Member's Department ID
 $ulsc_id = $_SESSION['ulsc_id'];
 
@@ -32,96 +26,62 @@ if (!$ulsc) {
     exit();
 }
 
-// Store ULSC's department ID and name safely
+// Store ULSC's department ID safely
 $dept_id = $ulsc['dept_id'];
 $ulsc_name = htmlspecialchars($ulsc['ulsc_name']);
 $dept_name = htmlspecialchars($ulsc['dept_name']);
 
-// Extract department code from ULSC ID (e.g., "23CE001" -> "CE") for client-side validation
-$ulscDeptCode = '';
-if (preg_match('/\d{2}([A-Za-z]{2,3})\d{3}/', $ulsc_id, $matches)) {
-    $ulscDeptCode = strtoupper($matches[1]);
-} else {
-    // Fallback or error handling if ULSC ID format is unexpected
-    error_log("Error: Could not extract department code from ULSC ID: " . $ulsc_id);
-    // You might want to set a default or show an error to the user
-}
-
 // Fetch academic years from the database
 $academicYears = [];
-$yearQuery = $dbh->query("SELECT id, year FROM academic_years ORDER BY year DESC");
+$yearQuery = $dbh->query("SELECT year FROM academic_years ORDER BY year DESC");
 if ($yearQuery) {
-    $academicYears = $yearQuery->fetchAll(PDO::FETCH_ASSOC);
+    $academicYears = $yearQuery->fetchAll(PDO::FETCH_COLUMN);
 }
 
-// Fetch events based on the selected academic year (or initially, no year selected)
-$events = [];
-if ($academic_year_id > 0) {
-    $query = $dbh->prepare("
-        SELECT e.*
-        FROM events e
-        WHERE e.event_type = 'Sports'
-        AND e.academic_year_id = :academic_year_id
-        AND NOT EXISTS (
-            SELECT 1 FROM participants p 
-            WHERE p.event_id = e.id 
-            AND p.dept_id = :dept_id
-            AND p.academic_year_id = :academic_year_id
-        )
-        ORDER BY e.event_name ASC
-    ");
-    $query->bindParam(':academic_year_id', $academic_year_id, PDO::PARAM_INT);
-    $query->bindParam(':dept_id', $dept_id, PDO::PARAM_INT);
-    $query->execute();
-    $events = $query->fetchAll(PDO::FETCH_ASSOC);
-}
-
-// --- Participant Submission Logic ---
-// This block will execute when the main form (with participants) is submitted
-if (
-    $_SERVER["REQUEST_METHOD"] == "POST" &&
-    isset($_POST['event']) &&
-    isset($_POST['student_id']) &&
-    is_array($_POST['student_id']) &&
-    isset($_POST['academic_year_id_for_submission']) // Hidden field to pass academic year on submission
-) {
-    $event_id = (int)$_POST['event'];
-    // Filter out empty student IDs from the array
-    $student_ids = array_filter(array_map('trim', $_POST['student_id']));
+if ($_SERVER["REQUEST_METHOD"] == "POST") {
+    $event_id = $_POST['event'];
+    $student_ids = $_POST['student_id'];
     $min_participants = (int)$_POST['minParticipants'];
     $max_participants = (int)$_POST['maxParticipants'];
     $captain_id = $_POST['captain_id'] ?? null;
-    $academic_year_id_for_submission = (int)$_POST['academic_year_id_for_submission'];
 
-    // 1. Check if department has already registered for this event in this academic year
-    $checkEventSql = "SELECT COUNT(*) FROM participants WHERE event_id = :event_id AND dept_id = :dept_id AND academic_year_id = :academic_year_id";
+    // Check if department has already registered for this event
+    $checkEventSql = "SELECT COUNT(*) FROM participants WHERE event_id = :event_id AND dept_id = :dept_id";
     $checkEventQuery = $dbh->prepare($checkEventSql);
     $checkEventQuery->bindParam(':event_id', $event_id, PDO::PARAM_INT);
     $checkEventQuery->bindParam(':dept_id', $dept_id, PDO::PARAM_INT);
-    $checkEventQuery->bindParam(':academic_year_id', $academic_year_id_for_submission, PDO::PARAM_INT);
     $checkEventQuery->execute();
     $hasRegistered = (int)$checkEventQuery->fetchColumn() > 0;
 
     if ($hasRegistered) {
-        echo "<script>alert('Your department has already registered for this event in the selected academic year.'); window.location.href='addsportsevent.php';</script>";
+        echo "<script>alert('Your department has already registered for this event.'); window.location.href='addsportsevent.php';</script>";
         exit;
     }
 
-    // 2. Validate participant count
-    if (count($student_ids) < $min_participants || count($student_ids) > $max_participants) {
-        echo "<script>alert('Number of participants must be between $min_participants and $max_participants.'); window.location.href='addsportsevent.php';</script>";
+    // Validate participant count
+    $sql = "SELECT COUNT(*) FROM participants WHERE event_id = :event_id AND dept_id = :dept_id";
+    $query = $dbh->prepare($sql);
+    $query->bindParam(':event_id', $event_id, PDO::PARAM_INT);
+    $query->bindParam(':dept_id', $dept_id, PDO::PARAM_INT); // Add department filter
+    $query->execute();
+    $current_count = (int) $query->fetchColumn();
+
+    $num_participants = count($student_ids);
+    if (($current_count + $num_participants) > $max_participants) {
+        echo "<script>alert('Cannot add participants. Exceeds maximum limit.'); window.location.href='addsportsevent.php';</script>";
         exit;
     }
 
-    // 3. Validate captain selection
+    // Validate captain selection
     if (!$captain_id || !in_array($captain_id, $student_ids)) {
         echo "<script>alert('Please select a valid captain from the participants.'); window.location.href='addsportsevent.php';</script>";
         exit;
     }
 
-    // 4. Batch fetch student details and validate department affiliation
+    // Batch fetch student details
     $placeholders = [];
     $paramValues = [];
+
     foreach ($student_ids as $index => $student_id) {
         $param = ":student_id" . $index;
         $placeholders[] = $param;
@@ -134,79 +94,109 @@ if (
     $checkStudentQuery->execute($paramValues);
     $students = $checkStudentQuery->fetchAll(PDO::FETCH_ASSOC);
 
+    // Map student IDs to their departments
     $studentDeptMap = [];
     foreach ($students as $student) {
         $studentDeptMap[$student['student_id']] = $student['dept_id'];
     }
 
+    $invalidStudents = [];
     foreach ($student_ids as $student_id) {
         if (!isset($studentDeptMap[$student_id])) {
-            echo "<script>alert('Student ID $student_id not found in the student database.'); window.location.href='addsportsevent.php';</script>";
-            exit;
+            $invalidStudents[] = $student_id;
         } elseif ($studentDeptMap[$student_id] != $dept_id) {
             echo "<script>alert('Student ID $student_id does not belong to your department.'); window.location.href='addsportsevent.php';</script>";
             exit;
         }
     }
 
-    // 5. Check if any of the selected students are already registered for THIS event and academic year
+    if (!empty($invalidStudents)) {
+        $invalidList = implode(", ", $invalidStudents);
+        echo "<script>alert('Invalid Student IDs: $invalidList'); window.location.href='addsportsevent.php';</script>";
+        exit;
+    }
+
+    // Check if students are already registered
     $placeholders = [];
-    $paramValues = [':event_id' => $event_id, ':academic_year_id' => $academic_year_id_for_submission];
+    $paramValues = [':event_id' => $event_id];
+
     foreach ($student_ids as $index => $student_id) {
         $param = ":student_id" . $index;
         $placeholders[] = $param;
         $paramValues[$param] = $student_id;
     }
+
     $placeholdersString = implode(',', $placeholders);
-    $checkParticipantSql = "SELECT student_id FROM participants WHERE event_id = :event_id AND academic_year_id = :academic_year_id AND student_id IN ($placeholdersString)";
+    $checkParticipantSql = "SELECT student_id FROM participants WHERE event_id = :event_id AND student_id IN ($placeholdersString)";
     $checkParticipantQuery = $dbh->prepare($checkParticipantSql);
     $checkParticipantQuery->execute($paramValues);
     $existingParticipants = $checkParticipantQuery->fetchAll(PDO::FETCH_COLUMN);
 
     if (!empty($existingParticipants)) {
         $existingList = implode(", ", $existingParticipants);
-        echo "<script>alert('Some students are already registered for this event in the selected academic year: $existingList'); window.location.href='addsportsevent.php';</script>";
+        echo "<script>alert('Students already registered: $existingList'); window.location.href='addsportsevent.php';</script>";
         exit;
     }
     
-    // 6. Ensure only one captain per event per department for the specific academic year
-    // This check is already implicitly handled by the prior registration check for the department for the event,
-    // but explicit re-check for captain can be added if a scenario where captain might exist without other participants
-    // needs to be handled (e.g., if a previous registration was for captain only, which is unlikely with current logic).
-    // For simplicity, if the department is already registered for the event (checked at step 1),
-    // then a captain would already exist. If not, we're good to insert.
-
-    // Start a transaction for atomicity
-    $dbh->beginTransaction();
-    try {
-        // Insert participants
-        $sql = "INSERT INTO participants (event_id, student_id, dept_id, is_captain, academic_year_id) 
-                VALUES (:event_id, :student_id, :dept_id, :is_captain, :academic_year_id)";
-        $query = $dbh->prepare($sql);
-
-        foreach ($student_ids as $student_id) {
-            $is_captain = ($student_id == $captain_id) ? 1 : 0;
-            $query->execute([
-                ':event_id' => $event_id,
-                ':student_id' => $student_id,
-                ':dept_id' => $dept_id,
-                ':is_captain' => $is_captain,
-                ':academic_year_id' => $academic_year_id_for_submission
-            ]);
+    // Ensure only one captain per event per department
+    if ($captain_id) {
+        if (!in_array($captain_id, $student_ids)) {
+            echo "<script>alert('Captain must be from the selected participants.'); window.location.href='addsportsevent.php';</script>";
+            exit;
         }
-        $dbh->commit();
-        echo "<script>alert('Participants and captain assigned successfully!'); window.location.href='ulscdashboard.php';</script>";
-        exit;
-    } catch (PDOException $e) {
-        $dbh->rollBack();
-        error_log("Database Error: " . $e->getMessage()); // Log the actual error
-        echo "<script>alert('An error occurred during registration. Please try again. Error: " . $e->getMessage() . "'); window.location.href='addsportsevent.php';</script>";
-        exit;
+
+        $checkCaptainSql = "SELECT student_id FROM participants WHERE event_id = :event_id AND dept_id = :dept_id AND is_captain = 1";
+        $checkCaptainQuery = $dbh->prepare($checkCaptainSql);
+        $checkCaptainQuery->bindParam(':event_id', $event_id, PDO::PARAM_INT);
+        $checkCaptainQuery->bindParam(':dept_id', $dept_id, PDO::PARAM_INT); // Add department filter
+        $checkCaptainQuery->execute();
+        $existingCaptain = $checkCaptainQuery->fetchColumn();
+
+        if ($existingCaptain && $existingCaptain != $captain_id) {
+            echo "<script>alert('A different captain is already assigned for your department. Remove them first.'); window.location.href='addsportsevent.php';</script>";
+            exit;
+        }
     }
+
+    // Insert participants
+    $sql = "INSERT INTO participants (event_id, student_id, dept_id, is_captain) VALUES (:event_id, :student_id, :dept_id, :is_captain)";
+    $query = $dbh->prepare($sql);
+
+    foreach ($student_ids as $student_id) {
+        $is_captain = ($student_id == $captain_id) ? 1 : 0;
+        $query->execute([
+            ':event_id' => $event_id,
+            ':student_id' => $student_id,
+            ':dept_id' => $dept_id,
+            ':is_captain' => $is_captain
+        ]);
+    }
+
+    echo "<script>alert('Participants and captain assigned successfully!'); window.location.href='ulscdashboard.php';</script>";
+    exit;
 }
 
-// Determine if an event was selected in the previous POST (for retaining dropdown state and showing participant fields)
-$selectedEventId = isset($_POST['event']) ? (int)$_POST['event'] : 0;
+$query = $dbh->prepare("
+    SELECT e.*
+    FROM events e
+    WHERE e.event_type = 'Sports'
+    AND NOT EXISTS (
+        SELECT 1 FROM participants p 
+        WHERE p.event_id = e.id 
+        AND p.dept_id = :dept_id
+    )
+    ORDER BY e.event_name ASC
+");
+
+$query->bindParam(':dept_id', $dept_id, PDO::PARAM_INT);
+$query->execute();
+$events = $query->fetchAll(PDO::FETCH_ASSOC);
+
+// Debug event data
+echo "<!-- DEBUG: Found " . count($events) . " available sports events -->";
+if (count($events) == 0) {
+    echo "<script>console.log('No available sports events found for your department!');</script>";
+}
 
 ?>
 
@@ -219,132 +209,6 @@ $selectedEventId = isset($_POST['event']) ? (int)$_POST['event'] : 0;
     <title>Sports Event Entry - Spoural Management System</title>
     <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
     <link rel="stylesheet" href="../assets/css/style.css">
-    <!-- <style>
-        /* Optional: Add some basic styling for the new elements if not already in style.css */
-        .participants-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 20px;
-        }
-        .participants-table th, .participants-table td {
-            border: 1px solid #ddd;
-            padding: 8px;
-            text-align: left;
-        }
-        .participants-table th {
-            background-color: #f2f2f2;
-        }
-        .student-id-input {
-            width: 95%;
-            padding: 8px;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-        }
-        .add-participant-btn {
-            display: inline-block;
-            margin-top: 15px;
-            padding: 10px 15px;
-            background-color: #007bff;
-            color: white;
-            border-radius: 5px;
-            cursor: pointer;
-            font-weight: bold;
-            display: flex;
-            align-items: center;
-            gap: 5px;
-            width: fit-content;
-        }
-        .add-participant-btn:hover {
-            background-color: #0056b3;
-        }
-        .btn-danger {
-            background-color: #dc3545;
-            color: white;
-            border: none;
-            padding: 8px 12px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 14px;
-        }
-        .btn-danger:hover {
-            background-color: #c82333;
-        }
-        .btn-round {
-            border-radius: 50%; /* Makes buttons round */
-            width: 35px;
-            height: 35px;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            padding: 0;
-        }
-        .custom-radio {
-            display: inline-block;
-            position: relative;
-            padding-left: 25px;
-            margin-bottom: 0;
-            cursor: pointer;
-            font-size: 16px;
-            -webkit-user-select: none;
-            -moz-user-select: none;
-            -ms-user-select: none;
-            user-select: none;
-        }
-        .custom-radio input {
-            position: absolute;
-            opacity: 0;
-            cursor: pointer;
-        }
-        .radio-checkmark {
-            position: absolute;
-            top: 0;
-            left: 0;
-            height: 20px;
-            width: 20px;
-            background-color: #eee;
-            border-radius: 50%;
-        }
-        .custom-radio:hover input ~ .radio-checkmark {
-            background-color: #ccc;
-        }
-        .custom-radio input:checked ~ .radio-checkmark {
-            background-color: #007bff;
-        }
-        .radio-checkmark:after {
-            content: "";
-            position: absolute;
-            display: none;
-        }
-        .custom-radio input:checked ~ .radio-checkmark:after {
-            display: block;
-        }
-        .custom-radio .radio-checkmark:after {
-            top: 6px;
-            left: 6px;
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: white;
-        }
-        .alert {
-            padding: 10px 15px;
-            margin-bottom: 15px;
-            border: 1px solid transparent;
-            border-radius: 4px;
-        }
-        .alert-info {
-            color: #0c5460;
-            background-color: #d1ecf1;
-            border-color: #bee5eb;
-        }
-        .alert-info .bx {
-            margin-right: 8px;
-        }
-        .submit-container {
-            margin-top: 30px;
-            text-align: right;
-        }
-    </style> -->
 </head>
 
 <body>
@@ -355,36 +219,29 @@ $selectedEventId = isset($_POST['event']) ? (int)$_POST['event'] : 0;
             <div class="content-card">
                 <div class="content-header">
                     <h2><i class='bx bx-football'></i> Sports Event Entry</h2>
-                    <div>
-                        <span class="dept-badge"><?php echo htmlspecialchars($dept_name); ?></span>
+                   
+                    <div style="margin-top: 10px;">
+                        <label for="academicYear">Academic Year: </label>
+                        <select id="academicYear" name="academicYear">
+                            <?php foreach ($academicYears as $year): ?>
+                                <option value="<?= htmlspecialchars($year) ?>"><?= htmlspecialchars($year) ?></option>
+                            <?php endforeach; ?>
+                        </select>
                     </div>
+                    
                 </div>
                 
-                <form action="addsportsevent.php" method="POST" class="participant-form" id="mainEntryForm">
+                <form action="addsportsevent.php" method="POST" class="participant-form">
                     <div class="form-group">
-                        <div style="margin-top: 10px;">
-                            <label for="academicYear" class="form-label">Academic Year: </label>
-                            
-                            <select id="academicYear" name="academic_year_id" class="form-select" onchange="this.form.submit();">
-                                <option value="">Select Academic year</option>
-                                <?php foreach ($academicYears as $year): ?>
-                                    <option value="<?= $year['id'] ?>" <?= ($academic_year_id == $year['id']) ? 'selected' : '' ?>>
-                                        <?= htmlspecialchars($year['year']) ?>
-                                    </option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
-                        <br>
+
+                       
                         <label for="eventSelect" class="form-label">Select Sports Event:</label>
-                        <select id="eventSelect" name="event" class="form-select" onchange="showParticipantsForm();" required>
+                        <select id="eventSelect" name="event" class="form-select" onchange="showParticipantsForm(); console.log('Event changed');" required>
                             <option value="">Select Event...</option>
-                            <?php 
-                            foreach ($events as $event) : 
-                            ?>
+                            <?php foreach ($events as $event) : ?>
                                 <option value="<?= $event['id']; ?>" 
                                         data-min="<?= $event['min_participants']; ?>" 
-                                        data-max="<?= $event['max_participants']; ?>"
-                                        <?= ($selectedEventId === $event['id']) ? 'selected' : '' ?>>
+                                        data-max="<?= $event['max_participants']; ?>">
                                     <?= htmlspecialchars($event['event_name']); ?>
                                 </option>
                             <?php endforeach; ?>
@@ -395,7 +252,6 @@ $selectedEventId = isset($_POST['event']) ? (int)$_POST['event'] : 0;
                         <input type="hidden" id="minParticipants" name="minParticipants" value="">
                         <input type="hidden" id="maxParticipants" name="maxParticipants" value="">
                         <input type="hidden" id="captain_id" name="captain_id">
-                        <input type="hidden" id="academic_year_id_for_submission" name="academic_year_id_for_submission" value="<?= $academic_year_id ?>">
                         
                         <div class="participants-info">
                             <div class="alert alert-info">
@@ -413,16 +269,18 @@ $selectedEventId = isset($_POST['event']) ? (int)$_POST['event'] : 0;
                                 </tr>
                             </thead>
                             <tbody id="participantFields">
-                                </tbody>
+                                <!-- Participant rows will be added here -->
+                            </tbody>
                         </table>
 
+                        <!-- Add Participant Button -->
                         <div class="add-participant-btn" onclick="addNewParticipantRow()">
                             <i class='bx bx-plus-circle'></i> Add Participant
                         </div>
                     </div>
                     
                     <div class="submit-container">
-                        <button type="submit" class="btn btn-primary" id="submit_button">Submit Entry</button>
+                        <button type="submit" class="btn btn-primary">Submit Entry</button>
                     </div>
                 </form>
             </div>
@@ -441,346 +299,425 @@ $selectedEventId = isset($_POST['event']) ? (int)$_POST['event'] : 0;
     document.addEventListener("click", function(event) {
         var sidebar = document.getElementById("mySidenav");
         var sidebarButton = document.querySelector("span[onclick='openNav()']");
-
+    
         // Check if the click is outside the sidebar and not on the open button
         if (!sidebar.contains(event.target) && !sidebarButton.contains(event.target)) {
             closeNav();
         }
     });
-
-    // Function to display the participants form when an event is selected
-    function showParticipantsForm() {
-        let select = document.getElementById("eventSelect");
-        let participantsContainer = document.getElementById("participantsContainer");
-
-        if (select.value) {
-            let selectedOption = select.options[select.selectedIndex];
-            let minParticipants = parseInt(selectedOption.getAttribute("data-min"));
-            let maxParticipants = parseInt(selectedOption.getAttribute("data-max"));
-
-            document.getElementById("minParticipants").value = minParticipants;
-            document.getElementById("maxParticipants").value = maxParticipants;
-            document.getElementById("requiredCount").textContent = `${minParticipants}-${maxParticipants}`; // Updates info message
-
-            participantsContainer.style.display = "block";
-
-            // Clear existing rows before adding new ones
-            let tableBody = document.getElementById("participantFields");
-            tableBody.innerHTML = "";
-
-            // Add minimum number of rows
-            for (let i = 0; i < minParticipants; i++) {
-                addNewParticipantRow();
-            }
-
-            // Update button visibility (primarily for the Add Participant button and individual delete buttons)
-            updateButtonVisibility();
-
-            // Attempt to auto-select the first participant as captain if possible
-            checkAndAutoSelectCaptain();
-            validateAllParticipants(); // Re-validate after adding initial rows
-        } else {
-            participantsContainer.style.display = "none";
-            document.getElementById("submit_button").disabled = true; // Disable submit if no event is selected
+    
+    document.getElementById("searchInput").addEventListener("keyup", function () {
+        let filter = this.value.toLowerCase();
+        let rows = document.querySelectorAll("#participantsTable tbody tr");
+        rows.forEach(row => {
+            let studentID = row.cells[1].textContent.toLowerCase();
+            let eventName = row.cells[2].textContent.toLowerCase();
+            row.style.display = studentID.includes(filter) || eventName.includes(filter) ? "" : "none";
+        });
+    });
+    
+function showParticipantsForm() {
+    let select = document.getElementById("eventSelect");
+    let participantsContainer = document.getElementById("participantsContainer");
+    
+    console.log("showParticipantsForm called, select value:", select.value);
+    
+    if (select.value) {
+        let selectedOption = select.options[select.selectedIndex];
+        let minParticipants = selectedOption.getAttribute("data-min");
+        let maxParticipants = selectedOption.getAttribute("data-max");
+        
+        console.log("Selected event:", select.options[select.selectedIndex].text);
+        console.log("Min participants:", minParticipants);
+        console.log("Max participants:", maxParticipants);
+        
+        document.getElementById("minParticipants").value = minParticipants;
+        document.getElementById("maxParticipants").value = maxParticipants;
+        document.getElementById("requiredCount").textContent = `${minParticipants}-${maxParticipants}`;
+        
+        participantsContainer.style.display = "block";
+        
+        // Clear existing rows
+        let tableBody = document.getElementById("participantFields");
+        tableBody.innerHTML = "";
+        
+        // Add minimum number of rows
+        for (let i = 0; i < minParticipants; i++) {
+            addNewParticipantRow();
         }
+        
+        // Update button visibility after adding rows
+        updateButtonVisibility();
+        
+        // Select first participant as captain by default
+        checkAndAutoSelectCaptain();
+    } else {
+        participantsContainer.style.display = "none";
+    }
+}
+
+function addNewParticipantRow() {
+    let tableBody = document.getElementById("participantFields");
+    let rowCount = tableBody.children.length;
+    let maxParticipants = parseInt(document.getElementById("maxParticipants").value);
+
+    if (rowCount >= maxParticipants) {
+        alert(`Maximum ${maxParticipants} participants allowed.`);
+        return;
     }
 
-    // Function to add a new participant row
-    function addNewParticipantRow() {
-        let tableBody = document.getElementById("participantFields");
-        let rowCount = tableBody.children.length;
-        let maxParticipants = parseInt(document.getElementById("maxParticipants").value);
+    let newRow = document.createElement("tr");
+    newRow.innerHTML = `
+        <td>
+            <input type="text" name="student_id[]" class="student-id-input" placeholder="Enter Student ID" required oninput="updateCaptainRadio(this)" onblur="checkDuplicateID(this)">
+        </td>
+        <td>
+            <label class="custom-radio">
+                <input type="radio" name="captain_id" value="" onclick="setCaptain(this)" class="captain-radio">
+                <span class="radio-checkmark"></span>
+            </label>
+        </td>
+        <td>
+            <button type="button" class="btn btn-danger btn-round" onclick="removeRow(this)">
+                <i class='bx bx-trash'></i>
+            </button>
+        </td>
+    `;
 
-        // Prevent adding more rows than maxParticipants
-        if (rowCount >= maxParticipants) {
-            alert(`Maximum ${maxParticipants} participants allowed.`);
-            return;
+    tableBody.appendChild(newRow);
+
+    // Update the add button visibility
+    updateButtonVisibility();
+
+    // If this is the first row being added, ensure it will be selected as captain once data is entered
+    if (rowCount === 0) {
+        let input = newRow.querySelector(".student-id-input");
+        let radio = newRow.querySelector("input[type='radio']");
+        input.addEventListener("input", function() {
+            if (this.value.trim() !== "") {
+                radio.checked = true;
+                setCaptain(radio);
+            }
+        });
+    }
+}
+
+function checkDuplicateID(inputField) {
+    let studentID = inputField.value.trim();
+    if (!studentID) return;
+    
+    let inputs = document.querySelectorAll(".student-id-input");
+    let count = 0;
+    
+    for (let input of inputs) {
+        if (input.value.trim() === studentID) {
+            count++;
+            if (count > 1) {
+                alert("This student ID has already been added!");
+                inputField.value = "";
+                return;
+            }
         }
+    }
+}
 
-        let newRow = document.createElement("tr");
-        newRow.innerHTML = `
-            <td>
-                <input type="text" name="student_id[]" class="student-id-input" placeholder="Enter Student ID" required
-                       oninput="updateCaptainRadio(this); validateAllParticipants();"
-                       onblur="checkDuplicateID(this); validateParticipantID(this, '<?= $ulscDeptCode ?>'); validateAllParticipants();">
-            </td>
-            <td>
-                <label class="custom-radio">
-                    <input type="radio" name="captain_id" value="" onclick="setCaptain(this)" class="captain-radio">
-                    <span class="radio-checkmark"></span>
-                </label>
-            </td>
-            <td>
-                <button type="button" class="btn btn-danger btn-round" onclick="removeRow(this)">
-                    <i class='bx bx-trash'></i>
-                </button>
-            </td>
-        `;
+function updateCaptainRadio(inputField) {
+    let row = inputField.closest("tr");
+    let radioButton = row.querySelector(".captain-radio");
+    radioButton.value = inputField.value.trim(); // Set the value of the radio button to the entered student ID
+    
+    let tableBody = document.getElementById("participantFields");
+    let rows = tableBody.getElementsByTagName("tr");
+    
+    // If this is the first participant and no captain is selected yet, select as captain
+    if (row === rows[0] && !document.querySelector(".captain-radio:checked") && inputField.value.trim() !== "") {
+        radioButton.checked = true;
+        document.getElementById("captain_id").value = inputField.value.trim();
+    }
+    
+    // If only one participant, always auto-select as captain
+    if (rows.length === 1 && inputField.value.trim() !== "") {
+        radioButton.checked = true;
+        document.getElementById("captain_id").value = inputField.value.trim();
+    }
+}
 
-        tableBody.appendChild(newRow);
-
-        // Update the add button visibility and ensure remove buttons are visible for removable rows
-        updateButtonVisibility();
-
-        // If this is the first row being added and no captain is set, auto-select it once ID is entered
-        // This makes the initial UX smoother.
-        if (rowCount === 0 && !document.querySelector(".captain-radio:checked")) {
-            let input = newRow.querySelector(".student-id-input");
-            let radio = newRow.querySelector("input[type='radio']");
-            // Add a small delay or check for input value to ensure radio is set only if ID is entered
-            input.addEventListener("input", function() {
-                if (this.value.trim() !== "" && !document.querySelector(".captain-radio:checked")) { // Re-check to avoid overwriting a manually selected captain
-                    radio.checked = true;
-                    setCaptain(radio);
+// Add this function to your existing script
+function checkAndAutoSelectCaptain() {
+    let tableBody = document.getElementById("participantFields");
+    let rows = tableBody.getElementsByTagName("tr");
+    
+    if (rows.length > 0) {
+        // Always select the first participant as captain
+        let radioButton = rows[0].querySelector(".captain-radio");
+        let studentInput = rows[0].querySelector(".student-id-input");
+        
+        if (studentInput.value.trim() !== "") {
+            radioButton.checked = true;
+            document.getElementById("captain_id").value = studentInput.value.trim();
+        } else {
+            // Set up an event listener to assign captain when ID is entered
+            studentInput.addEventListener("input", function() {
+                if (this.value.trim() !== "") {
+                    radioButton.checked = true;
+                    document.getElementById("captain_id").value = this.value.trim();
                 }
             });
         }
-        validateAllParticipants(); // Re-validate after adding a new row
+    }
+}
+
+function removeRow(button) {
+    let row = button.closest("tr");
+    let tableBody = document.getElementById("participantFields");
+    let minParticipants = parseInt(document.getElementById("minParticipants").value, 10);
+    let currentCount = tableBody.getElementsByTagName("tr").length;
+
+    if (currentCount > minParticipants) {
+        row.remove();
+        updateButtonVisibility();
+    } else {
+        alert(`You cannot remove participants below the minimum required (${minParticipants}).`);
+    }
+}
+
+function setCaptain(radio) {
+    let row = radio.closest("tr");
+    let studentInput = row.querySelector(".student-id-input");
+
+    if (studentInput.value.trim() === "") {
+        alert("Captain must have a valid Student ID.");
+        radio.checked = false;
+        return;
     }
 
-    // Function to check for duplicate student IDs within the current form
-    function checkDuplicateID(inputField) {
-        let studentID = inputField.value.trim().toUpperCase();
-        if (!studentID) return;
+    document.querySelectorAll(".captain-radio").forEach(r => r.checked = false);
+    radio.checked = true;
 
-        let inputs = document.querySelectorAll(".student-id-input");
-        let count = 0;
+    document.getElementById("captain_id").value = studentInput.value.trim(); // Assign captain ID
+}
 
-        for (let input of inputs) {
-            if (input !== inputField && input.value.trim().toUpperCase() === studentID) {
-                count++;
-            }
+function generateParticipantFields(min, max) {
+    var container = document.getElementById("participantFields");
+    container.innerHTML = "";
+
+    for (let i = 0; i < min; i++) {
+        addNewParticipantRow();
+    }
+    
+    // After generating initial fields, update button visibility
+    updateButtonVisibility();
+    
+    // Always select first participant as captain
+    checkAndAutoSelectCaptain();
+}
+
+function updateButtonVisibility() {
+    let tableBody = document.getElementById("participantFields");
+    let rows = tableBody.getElementsByTagName("tr");
+    let rowCount = rows.length;
+    let minParticipants = parseInt(document.getElementById("minParticipants").value, 10);
+    let maxParticipants = parseInt(document.getElementById("maxParticipants").value, 10);
+    
+    // Update add button visibility
+    let addButton = document.querySelector(".add-participant-btn");
+    if (addButton) {
+        addButton.style.display = rowCount >= maxParticipants ? "none" : "inline-block";
+    }
+    
+    // Update remove buttons visibility
+    for (let i = 0; i < rowCount; i++) {
+        let removeBtn = rows[i].querySelector(".btn-danger");
+        if (removeBtn) {
+            // Hide remove button for the first 'minParticipants' rows
+            removeBtn.style.display = (rowCount <= minParticipants || i < minParticipants) ? "none" : "inline-block";
         }
+    }
+}
 
-        if (count > 0) {
+function validateParticipantID(inputField, ulscDept) {
+    let studentID = inputField.value.toUpperCase().trim(); // Convert to uppercase for consistency
+    let studentMatch = studentID.match(/\d{2}([A-Z]{2,3})\d{3}/);
+
+    if (!studentMatch) {
+        inputField.style.border = "2px solid red";
+        inputField.setCustomValidity("Invalid Student ID format!");
+        inputField.reportValidity();
+    } else {
+        let studentDept = studentMatch[1]; // Extracted department code
+
+        if (studentDept !== ulscDept.toUpperCase()) {
             inputField.style.border = "2px solid red";
-            inputField.setCustomValidity("This student ID has already been added!");
+            inputField.setCustomValidity(
+                `This student ID (${studentID}) does not belong to your department (${ulscDept.toUpperCase()})!`
+            );
             inputField.reportValidity();
+            setTimeout(() => alert(`This student ID (${studentID}) does not belong to your department (${ulscDept.toUpperCase()})!`), 100);
+            inputField.value = ""; // Clear invalid entry
         } else {
-            // Clear custom validity if no duplicate (don't clear if other validations apply)
-            if (!inputField.validationMessage || inputField.validationMessage === "This student ID has already been added!") {
-                 inputField.setCustomValidity("");
-            }
+            inputField.style.border = "2px solid green";
+            inputField.setCustomValidity("");
+        }
+    }
+    validateAllParticipants();
+}
+
+function validateAllParticipants() {
+    let participantInputs = document.getElementsByClassName("participant_id");
+    let hasError = false;
+
+    for (let input of participantInputs) {
+        if (input.style.border === "2px solid red" || input.value.trim() === "") {
+            hasError = true;
+            break;
         }
     }
 
-    // Function to update the captain radio button's value attribute with the student ID
-    function updateCaptainRadio(inputField) {
-        let row = inputField.closest("tr");
-        let radioButton = row.querySelector(".captain-radio");
-        radioButton.value = inputField.value.trim();
-    }
-
-    // Function to auto-select the first valid participant as captain
-    function checkAndAutoSelectCaptain() {
-        let tableBody = document.getElementById("participantFields");
-        let rows = tableBody.getElementsByTagName("tr");
-
-        let currentCaptainRadio = document.querySelector(".captain-radio:checked");
-        let currentCaptainId = currentCaptainRadio ? currentCaptainRadio.value : '';
-
-        // If no captain is currently selected OR the current captain's input is empty/invalid
-        if (!currentCaptainRadio || currentCaptainId === '') {
-            if (rows.length > 0) {
-                let firstStudentInput = rows[0].querySelector(".student-id-input");
-                let firstRadioButton = rows[0].querySelector(".captain-radio");
-
-                if (firstStudentInput && firstStudentInput.value.trim() !== "") {
-                    firstRadioButton.checked = true;
-                    setCaptain(firstRadioButton); // Update hidden field via setCaptain
-                } else {
-                    document.getElementById("captain_id").value = ""; // Clear if first input is empty
-                }
-            } else {
-                document.getElementById("captain_id").value = ""; // No participants, no captain
-            }
-        }
-    }
-
-    // Function to remove a participant row (RESTORED)
-    function removeRow(button) {
-        let row = button.closest("tr");
-        let tableBody = document.getElementById("participantFields");
-        let minParticipants = parseInt(document.getElementById("minParticipants").value, 10);
-        let currentCount = tableBody.getElementsByTagName("tr").length;
-        let removedStudentId = row.querySelector(".student-id-input").value.trim();
-        let captainIdInput = document.getElementById("captain_id");
-
-        // Allow removal only if current count is greater than minimum participants
-        if (currentCount > minParticipants) {
-            // If the removed row's student was the captain, clear captain_id
-            if (removedStudentId === captainIdInput.value) {
-                captainIdInput.value = ""; // Clear the hidden captain ID
-            }
-            row.remove();
-            updateButtonVisibility(); // Update button visibility after removal
-            // Re-evaluate captain selection if the removed participant was the captain, or if no captain is selected
-            if (removedStudentId === captainIdInput.value || captainIdInput.value === "") {
-                checkAndAutoSelectCaptain();
-            }
-            validateAllParticipants(); // Validate after removing a row
+    let errorMessage = document.getElementById("error_message");
+    let submitButton = document.getElementById("submit_button");
+    
+    if (errorMessage && submitButton) {
+        if (hasError) {
+            errorMessage.innerText = "One or more participant IDs have an incorrect department!";
+            submitButton.disabled = true;
         } else {
-            alert(`You cannot remove participants below the minimum required (${minParticipants}).`);
+            errorMessage.innerText = "";
+            submitButton.disabled = false;
         }
     }
+}
 
-    // Function to set the captain based on radio button click
-    function setCaptain(radio) {
-        let row = radio.closest("tr");
-        let studentInput = row.querySelector(".student-id-input");
-
-        if (studentInput.value.trim() === "") {
-            alert("Captain must have a valid Student ID.");
-            radio.checked = false;
-            document.getElementById("captain_id").value = ""; // Ensure hidden captain_id is cleared
-            return;
-        }
-
-        // Uncheck all other captain radios
-        document.querySelectorAll(".captain-radio").forEach(r => r.checked = false);
-        radio.checked = true; // Check the clicked one
-
-        document.getElementById("captain_id").value = studentInput.value.trim(); // Assign captain ID to hidden field
-        validateAllParticipants(); // Re-validate after setting captain
-    }
-
-    // Function to update the visibility of add/remove buttons (MODIFIED TO SHOW/HIDE REMOVE BUTTONS)
-    function updateButtonVisibility() {
-        let tableBody = document.getElementById("participantFields");
-        let rows = tableBody.getElementsByTagName("tr");
-        let rowCount = rows.length;
-        let minParticipants = parseInt(document.getElementById("minParticipants").value, 10);
-        let maxParticipants = parseInt(document.getElementById("maxParticipants").value, 10);
-
-        // Update add button visibility
-        let addButton = document.querySelector(".add-participant-btn");
-        if (addButton) {
-            addButton.style.display = rowCount >= maxParticipants ? "none" : "inline-block";
-        }
-
-        // Update remove buttons visibility
-        for (let i = 0; i < rowCount; i++) {
-            let removeBtn = rows[i].querySelector(".btn-danger");
-            if (removeBtn) {
-                // Hide remove button if current count is at or below minimum required participants
-                removeBtn.style.display = (rowCount <= minParticipants) ? "none" : "inline-block";
-            }
+function isDuplicateStudentID(studentID) {
+    if (!studentID) return false;
+    
+    let inputs = document.querySelectorAll(".student-id-input");
+    let count = 0;
+    
+    for (let input of inputs) {
+        if (input.value.trim() === studentID) {
+            count++;
+            if (count > 1) return true;
         }
     }
+    
+    return false;
+}
 
-    // Client-side Student ID format and department validation
-    function validateParticipantID(inputField, ulscDept) {
-        let studentID = inputField.value.toUpperCase().trim();
-        let studentMatch = studentID.match(/\d{2}([A-Z]{2,3})\d{3}/); // Regex for YYDEPTNNN (2 or 3 letters for DEPT)
-
-        if (!studentMatch) {
-            inputField.style.border = "2px solid red";
-            inputField.setCustomValidity("Invalid Student ID format! (e.g., YYDEPTNNN)");
-        } else {
-            let studentDept = studentMatch[1]; // Extracted department code
-
-            if (studentDept !== ulscDept.toUpperCase()) {
-                inputField.style.border = "2px solid red";
-                inputField.setCustomValidity(
-                    `This student ID (${studentID}) does not belong to your department (${ulscDept.toUpperCase()})!`
-                );
-            } else {
-                inputField.style.border = "2px solid green";
-                inputField.setCustomValidity(""); // Clear custom validity if valid
-            }
-        }
-        inputField.reportValidity(); // Show validity message to the user
-        validateAllParticipants(); // Re-validate entire form after this input changes
-    }
-
-    // Validates all participant inputs and controls the submit button's disabled state
-    function validateAllParticipants() {
-        let participantInputs = document.querySelectorAll(".student-id-input");
-        let submitButton = document.getElementById("submit_button");
-        let minParticipants = parseInt(document.getElementById("minParticipants").value, 10);
-        // let maxParticipants = parseInt(document.getElementById("maxParticipants").value, 10); // Not strictly needed here for 'hasError' logic
-
-        let hasError = false;
-        let filledCount = 0;
-        let studentIds = []; // To check for duplicates during this validation
-
-        participantInputs.forEach(input => {
+// Add a function to validate the entire form before submission
+document.addEventListener("DOMContentLoaded", function() {
+    // Add form submission validation
+    document.querySelector("form.participant-form").addEventListener("submit", function(event) {
+        // Check for duplicate student IDs
+        let studentIds = [];
+        let hasDuplicates = false;
+        let inputs = document.querySelectorAll(".student-id-input");
+        
+        inputs.forEach(input => {
             let id = input.value.trim();
-            if (id === "") {
-                hasError = true; // Mark error for empty required fields
-            } else {
-                filledCount++;
-                if (studentIds.includes(id)) {
-                    hasError = true; // Mark error for duplicate student IDs
-                } else {
-                    studentIds.push(id);
-                }
-            }
-            // Check for any existing custom validation error (e.g., from validateParticipantID)
-            if (input.validationMessage) {
-                hasError = true;
+            if (id !== "" && studentIds.includes(id)) {
+                hasDuplicates = true;
+                input.style.border = "2px solid red";
+            } else if (id !== "") {
+                studentIds.push(id);
+                input.style.border = "";
             }
         });
-
-        // Check if a captain is selected and is one of the entered participants
+        
+        if (hasDuplicates) {
+            alert("Please remove duplicate student IDs before submitting.");
+            event.preventDefault();
+            return false;
+        }
+        
+        // Ensure captain is selected
         let captainId = document.getElementById("captain_id").value;
         if (!captainId || !studentIds.includes(captainId)) {
-            hasError = true; // No captain or invalid captain
+            alert("Please select a valid captain from the participants.");
+            event.preventDefault();
+            return false;
         }
+        
+        return true;
+    });
+    
+    let ulscID = <?php echo json_encode($ulsc_id); ?>.toLowerCase().trim();
+    let ulscDeptMatch = ulscID.match(/\d{2}([a-z]{2})\d{3}/);
 
-        // Check if minimum number of participants are entered/filled
-        if (filledCount < minParticipants) {
-            hasError = true;
-        }
-
-        if (submitButton) {
-            submitButton.disabled = hasError;
-        }
+    if (!ulscDeptMatch) {
+        console.error("Invalid ULSC ID format!");
+        return;
     }
 
-    // Event listener for DOMContentLoaded to set up initial state and event handlers
-    document.addEventListener("DOMContentLoaded", function() {
-        // Get the department code from PHP for client-side validation
-        const ulscDeptCode = '<?= $ulscDeptCode ?>';
+    let ulscDept = ulscDeptMatch[1].toLowerCase(); // Extract department code
 
-        // Add form submission validation for the main form
-        document.getElementById("mainEntryForm").addEventListener("submit", function(event) {
-            // Re-run the comprehensive validation just before submission
-            validateAllParticipants();
-            if (document.getElementById("submit_button").disabled) {
-                alert("Please correct all validation errors before submitting.");
-                event.preventDefault(); // Prevent form submission if there are errors
-                return false;
-            }
+    let participantContainer = document.getElementById("participantFields");
+    let submitButton = document.getElementById("submit_button");
+    let errorMessage = document.getElementById("error_message");
 
-            // Final check for empty student IDs that might pass through other validations
-            let inputs = document.querySelectorAll(".student-id-input");
-            for (let input of inputs) {
-                if (input.value.trim() === "") {
-                    alert("All participant ID fields must be filled.");
-                    input.focus();
-                    event.preventDefault();
-                    return false;
-                }
-            }
+    if (!participantContainer) {
+        console.error("Participant fields container not found!");
+        return;
+    }
 
-            return true; // Allow form submission
-        });
+    // Event listener for participant ID validation
+    participantContainer.addEventListener("input", function (event) {
+        if (event.target && event.target.classList.contains("participant_id")) {
+            validateParticipantID(event.target, ulscDept);
+        }
+    });
+});
 
-        // Auto-trigger showParticipantsForm if an academic year and event were pre-selected
-        // This handles cases where the page reloads after selecting an academic year or a previous submission attempt.
+// Add this to ensure the event handlers are properly set up
+document.addEventListener("DOMContentLoaded", function() {
+    // Make sure event handlers are properly attached
+    let eventSelect = document.getElementById("eventSelect");
+    if (eventSelect) {
+        console.log("Event select found, attaching onchange handler");
+        eventSelect.addEventListener("change", showParticipantsForm);
+    } else {
+        console.error("Event select element not found!");
+    }
+});
+
+// Force display participants section if an event is selected
+document.addEventListener("DOMContentLoaded", function() {
+    setTimeout(function() {
         let eventSelect = document.getElementById("eventSelect");
         if (eventSelect && eventSelect.value) {
-            showParticipantsForm(); // This will generate rows and set initial button states
-        } else {
-            // If no event is selected initially, ensure the submit button is disabled
-            document.getElementById("submit_button").disabled = true;
+            console.log("Force showing participant form for value:", eventSelect.value);
+            
+            // Get the participants container
+            let participantsContainer = document.getElementById("participantsContainer");
+            if (participantsContainer) {
+                // Get min/max from selected option
+                let selectedOption = eventSelect.options[eventSelect.selectedIndex];
+                let minParticipants = selectedOption.getAttribute("data-min");
+                let maxParticipants = selectedOption.getAttribute("data-max");
+                
+                if (minParticipants && maxParticipants) {
+                    // Set the values
+                    document.getElementById("minParticipants").value = minParticipants;
+                    document.getElementById("maxParticipants").value = maxParticipants;
+                    document.getElementById("requiredCount").textContent = `${minParticipants}-${maxParticipants}`;
+                    
+                    // Show the container
+                    participantsContainer.style.display = "block";
+                    
+                    // Generate rows
+                    let tableBody = document.getElementById("participantFields");
+                    tableBody.innerHTML = "";
+                    
+                    // Force add the minimum participant rows
+                    for (let i = 0; i < parseInt(minParticipants); i++) {
+                        console.log("Adding row", i + 1);
+                        addNewParticipantRow();
+                    }
+                }
+            }
         }
-
-        // Initial validation call to set the submit button state correctly on page load
-        validateAllParticipants();
-    });
-</script>
-</body>
+    }, 500); // Delay to ensure DOM is fully loaded
+});
+    </script>
+    </body>
 
 </html>

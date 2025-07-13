@@ -93,7 +93,7 @@ $registered_events = $registeredEventQuery->fetch(PDO::FETCH_ASSOC)['total'];
             <div class="welcome-banner">
                 <h2>Welcome, <?php echo htmlspecialchars($admin_username); ?>!</h2>
                 <p>Manage your department's sports and cultural event entries through this dashboard.</p>
-                <p class="dept-badge"><?php echo htmlspecialchars($ulsc['dept_name']); ?></p>
+              
                 <div class="session-timer">
                     <span>Session Time Remaining: </span>
                     <span id="countdown"><?php echo $remaining_time; ?></span> seconds

@@ -21,9 +21,13 @@ $dept_id = $dept_name = "";
 
 // Handle download template
 if (isset($_GET['download_template'])) {
-    $data = [
-        ['dept_id', 'dept_name'], // Column headers
-    ];
+    // Fetch column names dynamically from the departments table using PDO
+    $columns = [];
+    $stmt = $dbh->query("SHOW COLUMNS FROM departments");
+    while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+        $columns[] = $row['Field'];
+    }
+    $data = [ $columns ]; // Column headers
     $xlsx = SimpleXLSXGen::fromArray($data);
     $xlsx->downloadAs('Departments_Template.xlsx');
     exit;
@@ -164,6 +168,52 @@ if (isset($_POST['save_department'])) {
     <link rel="stylesheet" href="../assets/css/style.css">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
+    <style>
+    .card-container {
+      display: flex;
+      gap: 2rem;
+      justify-content: center;
+      margin: 2rem 0;
+    }
+    .upload-card {
+      background: #f5f8fa;
+      border-radius: 16px;
+      box-shadow: 0 4px 24px rgba(44, 62, 80, 0.08);
+      padding: 2rem 2.5rem;
+      min-width: 320px;
+      text-align: center;
+      transition: box-shadow 0.2s, background 0.2s;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .upload-card:hover {
+      background: #fff;
+      box-shadow: 0 8px 32px rgba(44, 62, 80, 0.12);
+    }
+    .icon-title-row {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 1rem;
+      margin-bottom: 0.5rem;
+    }
+    .icon-title-row i {
+      font-size: 2.2rem;
+      color: #2236d1;
+    }
+    .card-title {
+      font-size: 1.25rem;
+      font-weight: 600;
+      color: #222;
+    }
+    .card-subtitle {
+      color: #888;
+      font-size: 1rem;
+      margin: 0;
+    }
+    </style>
 </head>
 
 <body>
@@ -176,18 +226,64 @@ if (isset($_POST['save_department'])) {
                     <h2><i class='bx bx-user-circle'></i> Departments</h2>
                 </div>
 
-                <div class="quick-access-grid">
-                    <a href="#" class="quick-access-card" id="singleDeptBtn">
-                        <i class='bx bx-detail'></i>
-                        <h3>Upload Single Department</h3>
-                        <p>Add a single department</p>
-                    </a>
+                <!-- Move View Departments table here -->
+                <section class="department-table">
+                    <h3>View Departments</h3>
+                    <div class="table-scroll" style="max-height: 400px; overflow-y: auto;">
+                        <table border='2px' class='cntr table table-bordered table-striped small-table participants-table'>
+                            <thead>
+                                <tr>
+                                    <th>Department ID</th>
+                                    <th>Department Name</th>
+                                    <th>Academic Year</th>
+                                    <th>Edit</th>
+                                    <th>Remove</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php 
+                                $query = $dbh->prepare("SELECT d.*, ay.year AS academic_year FROM departments d LEFT JOIN academic_years ay ON d.academic_years = ay.id ORDER BY d.dept_id DESC");
+                                $query->execute();
+                                $departments = $query->fetchAll(PDO::FETCH_ASSOC);
+                                foreach ($departments as $dept) { 
+                                ?>
+                                <tr>
+                                    <td><?= htmlspecialchars($dept['dept_id']) ?></td>
+                                    <td><?= htmlspecialchars($dept['dept_name']) ?></td>
+                                    <td><?= htmlspecialchars($dept['academic_year'] ?? '-') ?></td>
+                                    <td>
+                                        <a href="#" class="edit-dept btn btn-sm btn-primary" data-id="<?= $dept['dept_id'] ?>" data-name="<?= htmlspecialchars($dept['dept_name']) ?>">
+                                            <i class='bx bx-edit'></i> Edit
+                                        </a>
+                                    </td>
+                                    <td>
+                                        <a href="adddepartment.php?delete_id=<?= $dept['dept_id'] ?>" class="btn btn-sm btn-danger" onclick="return confirm('Are you sure?')">
+                                            <i class='bx bx-trash'></i> Delete
+                                        </a>
+                                    </td>
+                                </tr>
+                                <?php } ?>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
 
-                    <a href="#" class="quick-access-card" id="multipleDeptBtn">
-                        <i class='bx bx-list-ul'></i>
-                        <h3>Upload Multiple Departments</h3>
-                        <p>Add multiple departments</p>
-                    </a>
+                <!-- Card UI for upload options -->
+                <div class="card-container">
+                    <div class="upload-card" id="singleDeptCard">
+                        <div class="icon-title-row">
+                            <i class='bx bx-detail'></i>
+                            <span class="card-title">Upload Single Department</span>
+                        </div>
+                        <p class="card-subtitle">Add a single department</p>
+                    </div>
+                    <div class="upload-card" id="multipleDeptCard">
+                        <div class="icon-title-row">
+                            <i class='bx bx-list-ul'></i>
+                            <span class="card-title">Upload Multiple Departments</span>
+                        </div>
+                        <p class="card-subtitle">Add multiple departments</p>
+                    </div>
                 </div>
             </div>
 
@@ -206,43 +302,6 @@ if (isset($_POST['save_department'])) {
 
                             <button type="submit" name="save_department" class="submit-button"><?= isset($_GET['edit_id']) ? 'Update' : 'Submit' ?></button>
                         </form>
-                    </section>
-                    <br><br>
-                    <section class="department-table">
-                        <h3>View Departments</h3>
-                        <table class="styled-table">
-                            <thead>
-                                <tr>
-                                    <th>Department ID</th>
-                                    <th>Department Name</th>
-                                    <th>Edit</th>
-                                    <th>Remove</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php 
-                                $query = $dbh->prepare("SELECT * FROM departments ORDER BY dept_id DESC");
-                                $query->execute();
-                                $departments = $query->fetchAll(PDO::FETCH_ASSOC);
-                                foreach ($departments as $dept) { 
-                                ?>
-                                <tr>
-                                    <td><?= htmlspecialchars($dept['dept_id']) ?></td>
-                                    <td><?= htmlspecialchars($dept['dept_name']) ?></td>
-                                    <td>
-                                        <a href="#" class="edit-dept btn btn-sm btn-primary" data-id="<?= $dept['dept_id'] ?>" data-name="<?= htmlspecialchars($dept['dept_name']) ?>">
-                                            <i class='bx bx-edit'></i> Edit
-                                        </a>
-                                    </td>
-                                    <td>
-                                        <a href="adddepartment.php?delete_id=<?= $dept['dept_id'] ?>" class="btn btn-sm btn-danger" onclick="return confirm('Are you sure?')">
-                                            <i class='bx bx-trash'></i> Delete
-                                        </a>
-                                    </td>
-                                </tr>
-                                <?php } ?>
-                            </tbody>
-                        </table>
                     </section>
                 </div>
             </div>
@@ -343,6 +402,18 @@ if (isset($_POST['save_department'])) {
             });
         });
     </script>
+    <script>
+document.addEventListener('DOMContentLoaded', function() {
+    document.getElementById('singleDeptCard').addEventListener('click', function() {
+        document.getElementById('singleDeptContent').style.display = 'block';
+        document.getElementById('multipleDeptContent').style.display = 'none';
+    });
+    document.getElementById('multipleDeptCard').addEventListener('click', function() {
+        document.getElementById('singleDeptContent').style.display = 'none';
+        document.getElementById('multipleDeptContent').style.display = 'block';
+    });
+});
+</script>
 </body>
 
 </html>

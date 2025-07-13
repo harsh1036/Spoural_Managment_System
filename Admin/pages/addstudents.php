@@ -59,9 +59,13 @@ if (isset($_GET['edit_id'])) {
 
 // Handle download template
 if (isset($_GET['download_template'])) {
-    $data = [
-        ['student_id', 'student_name', 'contact', 'dept_id'], // Column headers
-    ];
+    // Fetch column names dynamically from the student table using PDO
+    $columns = [];
+    $stmt = $dbh->query("SHOW COLUMNS FROM student");
+    while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+        $columns[] = $row['Field'];
+    }
+    $data = [ $columns ]; // Column headers
     $xlsx = SimpleXLSXGen::fromArray($data);
     $xlsx->downloadAs('Students_Template.xlsx');
     exit;
@@ -182,6 +186,52 @@ if (isset($_POST['import'])) {
     <link rel="stylesheet" href="../assets/css/style.css">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
+    <style>
+    .card-container {
+      display: flex;
+      gap: 2rem;
+      justify-content: center;
+      margin: 2rem 0;
+    }
+    .upload-card {
+      background: #f5f8fa;
+      border-radius: 16px;
+      box-shadow: 0 4px 24px rgba(44, 62, 80, 0.08);
+      padding: 2rem 2.5rem;
+      min-width: 320px;
+      text-align: center;
+      transition: box-shadow 0.2s, background 0.2s;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .upload-card:hover {
+      background: #fff;
+      box-shadow: 0 8px 32px rgba(44, 62, 80, 0.12);
+    }
+    .icon-title-row {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 1rem;
+      margin-bottom: 0.5rem;
+    }
+    .icon-title-row i {
+      font-size: 2.2rem;
+      color: #2236d1;
+    }
+    .card-title {
+      font-size: 1.25rem;
+      font-weight: 600;
+      color: #222;
+    }
+    .card-subtitle {
+      color: #888;
+      font-size: 1rem;
+      margin: 0;
+    }
+    </style>
 </head>
 
 <body>
@@ -194,18 +244,21 @@ if (isset($_POST['import'])) {
                     <h2><i class='bx bx-user-circle'></i> Students</h2>
                 </div>
 
-                <div class="quick-access-grid">
-                    <a href="#" class="quick-access-card" id="singleStudentBtn">
-                        <i class='bx bx-detail'></i>
-                        <h3>Upload Single Student</h3>
-                        <p>Add a single student</p>
-                    </a>
-
-                    <a href="#" class="quick-access-card" id="multipleStudentBtn">
-                        <i class='bx bx-list-ul'></i>
-                        <h3>Upload Multiple Students</h3>
-                        <p>Add multiple students</p>
-                    </a>
+                <div class="card-container">
+                    <div class="upload-card" id="singleStudentCard">
+                        <div class="icon-title-row">
+                            <i class='bx bx-detail'></i>
+                            <span class="card-title">Upload Single Student</span>
+                        </div>
+                        <p class="card-subtitle">Add a single student</p>
+                    </div>
+                    <div class="upload-card" id="multipleStudentCard">
+                        <div class="icon-title-row">
+                            <i class='bx bx-list-ul'></i>
+                            <span class="card-title">Upload Multiple Students</span>
+                        </div>
+                        <p class="card-subtitle">Add multiple students</p>
+                    </div>
                 </div>
             </div>
 
@@ -266,61 +319,7 @@ if (isset($_POST['import'])) {
                         </form>
                     </div>
 
-                    <div class="table-responsive mt-4">
-                        <table class="table">
-                            <thead>
-                                <tr>
-                                    <th>ID</th>
-                                    <th>Name</th>
-                                    <th>Contact</th>
-                                    <th>Department</th>
-                                    <th>Edit</th>
-                                    <th>Remove</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php 
-                                $sql = "SELECT s.student_id, s.student_name, s.contact, s.dept_id, d.dept_name 
-                                        FROM student s
-                                        JOIN departments d ON s.dept_id = d.dept_id
-                                        ORDER BY s.student_id DESC";
-                                $query = $dbh->prepare($sql);
-                                $query->execute();
-                                $students = $query->fetchAll(PDO::FETCH_ASSOC);
-                                if (count($students) > 0): 
-                                    foreach ($students as $student): 
-                                ?>
-                                    <tr>
-                                        <td><?= htmlspecialchars($student['student_id']) ?></td>
-                                        <td><?= htmlspecialchars($student['student_name']) ?></td>
-                                        <td><?= htmlspecialchars($student['contact'] ?? '') ?></td>
-                                        <td><?= htmlspecialchars($student['dept_name'] ?? '') ?></td>
-                                        <td>
-                                            <button type="button" 
-                                                    class="edit-student btn btn-sm btn-primary"
-                                                    data-id="<?= htmlspecialchars($student['student_id']) ?>"
-                                                    data-name="<?= htmlspecialchars($student['student_name']) ?>"
-                                                    data-contact="<?= htmlspecialchars($student['contact'] ?? '') ?>"
-                                                    data-dept="<?= htmlspecialchars($student['dept_id']) ?>">
-                                                <i class='bx bx-edit'></i> Edit
-                                            </button></td><td>
-                                            <a href="addstudents.php?delete_id=<?= $student['student_id'] ?>" 
-                                               class="btn btn-sm btn-danger" 
-                                               onclick="return confirm('Are you sure you want to delete this student?')">
-                                                <i class='bx bx-trash'></i> Delete
-                                            </a>
-                                        </td>
-                                    </tr>
-                                <?php 
-                                    endforeach;
-                                else: 
-                                ?>
-                                    <tr>
-                                        <td colspan="5" class="text-center">No students found</td>
-                                    </tr>
-                                <?php endif; ?>
-                            </tbody>
-                        </table>
+                                            
                     </div>
                 </div>
             </div>
@@ -373,14 +372,15 @@ if (isset($_POST['import'])) {
             }
         }
 
-        document.getElementById('singleStudentBtn').addEventListener('click', function(e) {
-            e.preventDefault();
-            toggleContent('singleStudentContent');
-        });
-
-        document.getElementById('multipleStudentBtn').addEventListener('click', function(e) {
-            e.preventDefault();
-            toggleContent('multipleStudentContent');
+        document.addEventListener('DOMContentLoaded', function() {
+            document.getElementById('singleStudentCard').addEventListener('click', function() {
+                document.getElementById('singleStudentContent').style.display = 'block';
+                document.getElementById('multipleStudentContent').style.display = 'none';
+            });
+            document.getElementById('multipleStudentCard').addEventListener('click', function() {
+                document.getElementById('singleStudentContent').style.display = 'none';
+                document.getElementById('multipleStudentContent').style.display = 'block';
+            });
         });
 
         // Handle edit button clicks
