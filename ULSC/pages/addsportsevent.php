@@ -11,9 +11,9 @@ if (!isset($_SESSION['ulsc_id'])) {
 $ulsc_id = $_SESSION['ulsc_id'];
 
 // Fetch ULSC department details
-$sql = "SELECT u.dept_id, d.dept_name, u.ulsc_name 
-        FROM ulsc u 
-        JOIN departments d ON u.dept_id = d.dept_id 
+$sql = "SELECT u.dept_id, d.dept_name, u.ulsc_name
+        FROM ulsc u
+        JOIN departments d ON u.dept_id = d.dept_id
         WHERE u.ulsc_id = :ulsc_id";
 $query = $dbh->prepare($sql);
 $query->bindParam(':ulsc_id', $ulsc_id, PDO::PARAM_STR);
@@ -78,7 +78,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         exit;
     }
 
-    // Batch fetch student details
+    // Batch fetch student details and validate department
     $placeholders = [];
     $paramValues = [];
 
@@ -103,20 +103,21 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $invalidStudents = [];
     foreach ($student_ids as $student_id) {
         if (!isset($studentDeptMap[$student_id])) {
-            $invalidStudents[] = $student_id;
+            $invalidStudents[] = $student_id; // Student ID not found in database
         } elseif ($studentDeptMap[$student_id] != $dept_id) {
-            echo "<script>alert('Student ID $student_id does not belong to your department.'); window.location.href='addsportsevent.php';</script>";
+            // Student ID belongs to a different department
+            echo "<script>alert('Student ID $student_id does not belong to your department. Please enter student IDs from your department only.'); window.location.href='addsportsevent.php';</script>";
             exit;
         }
     }
 
     if (!empty($invalidStudents)) {
         $invalidList = implode(", ", $invalidStudents);
-        echo "<script>alert('Invalid Student IDs: $invalidList'); window.location.href='addsportsevent.php';</script>";
+        echo "<script>alert('Invalid Student IDs found: $invalidList. Please check the IDs and ensure they exist.'); window.location.href='addsportsevent.php';</script>";
         exit;
     }
 
-    // Check if students are already registered
+    // Check if students are already registered for this event (regardless of department)
     $placeholders = [];
     $paramValues = [':event_id' => $event_id];
 
@@ -134,14 +135,14 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
     if (!empty($existingParticipants)) {
         $existingList = implode(", ", $existingParticipants);
-        echo "<script>alert('Students already registered: $existingList'); window.location.href='addsportsevent.php';</script>";
+        echo "<script>alert('The following students are already registered for this event: $existingList'); window.location.href='addsportsevent.php';</script>";
         exit;
     }
     
     // Ensure only one captain per event per department
     if ($captain_id) {
         if (!in_array($captain_id, $student_ids)) {
-            echo "<script>alert('Captain must be from the selected participants.'); window.location.href='addsportsevent.php';</script>";
+            echo "<script>alert('Captain must be one of the selected participants.'); window.location.href='addsportsevent.php';</script>";
             exit;
         }
 
@@ -153,7 +154,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $existingCaptain = $checkCaptainQuery->fetchColumn();
 
         if ($existingCaptain && $existingCaptain != $captain_id) {
-            echo "<script>alert('A different captain is already assigned for your department. Remove them first.'); window.location.href='addsportsevent.php';</script>";
+            echo "<script>alert('A different captain is already assigned for your department for this event. Please update the existing entry if you wish to change the captain.'); window.location.href='addsportsevent.php';</script>";
             exit;
         }
     }
@@ -236,7 +237,7 @@ if (count($events) == 0) {
 
                        
                         <label for="eventSelect" class="form-label">Select Sports Event:</label>
-                        <select id="eventSelect" name="event" class="form-select" onchange="showParticipantsForm(); console.log('Event changed');" required>
+                        <select id="eventSelect" name="event" class="form-select" onchange="showParticipantsForm();" required>
                             <option value="">Select Event...</option>
                             <?php foreach ($events as $event) : ?>
                                 <option value="<?= $event['id']; ?>" 
@@ -315,21 +316,18 @@ if (count($events) == 0) {
             row.style.display = studentID.includes(filter) || eventName.includes(filter) ? "" : "none";
         });
     });
+
+// Global variable to store ULSC department code
+let ulscDept = ''; 
     
 function showParticipantsForm() {
     let select = document.getElementById("eventSelect");
     let participantsContainer = document.getElementById("participantsContainer");
     
-    console.log("showParticipantsForm called, select value:", select.value);
-    
     if (select.value) {
         let selectedOption = select.options[select.selectedIndex];
         let minParticipants = selectedOption.getAttribute("data-min");
         let maxParticipants = selectedOption.getAttribute("data-max");
-        
-        console.log("Selected event:", select.options[select.selectedIndex].text);
-        console.log("Min participants:", minParticipants);
-        console.log("Max participants:", maxParticipants);
         
         document.getElementById("minParticipants").value = minParticipants;
         document.getElementById("maxParticipants").value = maxParticipants;
@@ -369,7 +367,9 @@ function addNewParticipantRow() {
     let newRow = document.createElement("tr");
     newRow.innerHTML = `
         <td>
-            <input type="text" name="student_id[]" class="student-id-input" placeholder="Enter Student ID" required oninput="updateCaptainRadio(this)" onblur="checkDuplicateID(this)">
+            <input type="text" name="student_id[]" class="student-id-input" placeholder="Enter Student ID" required
+                   oninput="updateCaptainRadio(this); validateParticipantID(this, ulscDept);"
+                   onblur="checkDuplicateID(this);">
         </td>
         <td>
             <label class="custom-radio">
@@ -413,11 +413,17 @@ function checkDuplicateID(inputField) {
         if (input.value.trim() === studentID) {
             count++;
             if (count > 1) {
-                alert("This student ID has already been added!");
-                inputField.value = "";
+                inputField.style.border = "2px solid red";
+                inputField.setCustomValidity("This student ID has already been added!");
+                inputField.reportValidity();
                 return;
             }
         }
+    }
+    // If no duplicate or it's the original input, clear custom validity for duplicates
+    if (inputField.validity.customError && inputField.validationMessage === "This student ID has already been added!") {
+        inputField.setCustomValidity("");
+        inputField.style.border = "2px solid green"; // Or remove border if it was green
     }
 }
 
@@ -442,13 +448,11 @@ function updateCaptainRadio(inputField) {
     }
 }
 
-// Add this function to your existing script
 function checkAndAutoSelectCaptain() {
     let tableBody = document.getElementById("participantFields");
     let rows = tableBody.getElementsByTagName("tr");
     
     if (rows.length > 0) {
-        // Always select the first participant as captain
         let radioButton = rows[0].querySelector(".captain-radio");
         let studentInput = rows[0].querySelector(".student-id-input");
         
@@ -456,7 +460,6 @@ function checkAndAutoSelectCaptain() {
             radioButton.checked = true;
             document.getElementById("captain_id").value = studentInput.value.trim();
         } else {
-            // Set up an event listener to assign captain when ID is entered
             studentInput.addEventListener("input", function() {
                 if (this.value.trim() !== "") {
                     radioButton.checked = true;
@@ -474,8 +477,18 @@ function removeRow(button) {
     let currentCount = tableBody.getElementsByTagName("tr").length;
 
     if (currentCount > minParticipants) {
+        // If the removed row was the captain, clear captain_id and try to re-assign
+        let removedRadio = row.querySelector(".captain-radio");
+        if (removedRadio && removedRadio.checked) {
+            document.getElementById("captain_id").value = "";
+        }
         row.remove();
         updateButtonVisibility();
+
+        // If captain was removed, try to auto-select a new one
+        if (document.getElementById("captain_id").value === "") {
+            checkAndAutoSelectCaptain();
+        }
     } else {
         alert(`You cannot remove participants below the minimum required (${minParticipants}).`);
     }
@@ -505,10 +518,7 @@ function generateParticipantFields(min, max) {
         addNewParticipantRow();
     }
     
-    // After generating initial fields, update button visibility
     updateButtonVisibility();
-    
-    // Always select first participant as captain
     checkAndAutoSelectCaptain();
 }
 
@@ -535,103 +545,111 @@ function updateButtonVisibility() {
     }
 }
 
-function validateParticipantID(inputField, ulscDept) {
-    let studentID = inputField.value.toUpperCase().trim(); // Convert to uppercase for consistency
-    let studentMatch = studentID.match(/\d{2}([A-Z]{2,3})\d{3}/);
+function validateParticipantID(inputField, ulscDeptCode) {
+    let studentID = inputField.value.toUpperCase().trim();
+    // Regex: 2 digits, then 2-3 uppercase letters (department code), then 3 digits
+    let studentMatch = studentID.match(/^\d{2}([A-Z]{2,3})\d{3}$/);
 
     if (!studentMatch) {
         inputField.style.border = "2px solid red";
-        inputField.setCustomValidity("Invalid Student ID format!");
+        inputField.setCustomValidity("Invalid Student ID format (e.g., 22XX123)!");
         inputField.reportValidity();
+        return false;
     } else {
-        let studentDept = studentMatch[1]; // Extracted department code
+        let studentDept = studentMatch[1];
 
-        if (studentDept !== ulscDept.toUpperCase()) {
+        if (studentDept !== ulscDeptCode.toUpperCase()) {
             inputField.style.border = "2px solid red";
             inputField.setCustomValidity(
-                `This student ID (${studentID}) does not belong to your department (${ulscDept.toUpperCase()})!`
+                `This student ID (${studentID}) does not belong to your department (${ulscDeptCode.toUpperCase()})!`
             );
             inputField.reportValidity();
-            setTimeout(() => alert(`This student ID (${studentID}) does not belong to your department (${ulscDept.toUpperCase()})!`), 100);
-            inputField.value = ""; // Clear invalid entry
+            return false;
         } else {
             inputField.style.border = "2px solid green";
-            inputField.setCustomValidity("");
-        }
-    }
-    validateAllParticipants();
-}
-
-function validateAllParticipants() {
-    let participantInputs = document.getElementsByClassName("participant_id");
-    let hasError = false;
-
-    for (let input of participantInputs) {
-        if (input.style.border === "2px solid red" || input.value.trim() === "") {
-            hasError = true;
-            break;
-        }
-    }
-
-    let errorMessage = document.getElementById("error_message");
-    let submitButton = document.getElementById("submit_button");
-    
-    if (errorMessage && submitButton) {
-        if (hasError) {
-            errorMessage.innerText = "One or more participant IDs have an incorrect department!";
-            submitButton.disabled = true;
-        } else {
-            errorMessage.innerText = "";
-            submitButton.disabled = false;
+            inputField.setCustomValidity(""); // Clear any previous custom validity message
+            return true;
         }
     }
 }
 
-function isDuplicateStudentID(studentID) {
-    if (!studentID) return false;
-    
-    let inputs = document.querySelectorAll(".student-id-input");
-    let count = 0;
-    
-    for (let input of inputs) {
-        if (input.value.trim() === studentID) {
-            count++;
-            if (count > 1) return true;
-        }
-    }
-    
-    return false;
-}
 
-// Add a function to validate the entire form before submission
+// Add this to ensure the event handlers are properly set up
 document.addEventListener("DOMContentLoaded", function() {
+    // Extract ULSC department code once on load and store in global variable
+    let ulscID_php = <?php echo json_encode($ulsc_id); ?>.toLowerCase().trim();
+    let ulscDeptMatch = ulscID_php.match(/\d{2}([a-z]{2,3})\d{3}/); // Adjusted regex to match 2 or 3 letters
+
+    if (ulscDeptMatch) {
+        ulscDept = ulscDeptMatch[1].toLowerCase(); // Assign to global variable
+    } else {
+        console.error("Invalid ULSC ID format! Department validation may not work correctly.");
+    }
+
+    // Make sure event handlers are properly attached
+    let eventSelect = document.getElementById("eventSelect");
+    if (eventSelect) {
+        eventSelect.addEventListener("change", showParticipantsForm);
+    } else {
+        console.error("Event select element not found!");
+    }
+
+    let participantContainer = document.getElementById("participantFields");
+
+    if (!participantContainer) {
+        console.error("Participant fields container not found!");
+        return;
+    }
+
+    // Event listener for participant ID validation on input and blur
+    participantContainer.addEventListener("input", function (event) {
+        if (event.target && event.target.classList.contains("student-id-input")) {
+            validateParticipantID(event.target, ulscDept);
+        }
+    });
+
+    participantContainer.addEventListener("blur", function (event) {
+        if (event.target && event.target.classList.contains("student-id-input")) {
+            checkDuplicateID(event.target);
+        }
+    }, true); // Use capture phase for blur to ensure it fires on child elements
+
     // Add form submission validation
     document.querySelector("form.participant-form").addEventListener("submit", function(event) {
-        // Check for duplicate student IDs
-        let studentIds = [];
-        let hasDuplicates = false;
+        let allInputsValid = true;
         let inputs = document.querySelectorAll(".student-id-input");
-        
+
         inputs.forEach(input => {
-            let id = input.value.trim();
-            if (id !== "" && studentIds.includes(id)) {
-                hasDuplicates = true;
-                input.style.border = "2px solid red";
-            } else if (id !== "") {
-                studentIds.push(id);
-                input.style.border = "";
+            // Re-run validation for each input before submission
+            // First, validate department and format
+            let isDeptValid = validateParticipantID(input, ulscDept);
+            
+            // Then, check for duplicates
+            let isDuplicate = isDuplicateStudentID(input.value.trim()); // Use helper function
+            
+            if (!isDeptValid || input.value.trim() === "" || isDuplicate) {
+                allInputsValid = false;
+                // If there's an error, report validity to show message
+                if (!isDeptValid || input.value.trim() === "") {
+                    input.reportValidity();
+                } else if (isDuplicate) {
+                     input.setCustomValidity("This student ID has already been added!");
+                     input.reportValidity();
+                }
             }
         });
-        
-        if (hasDuplicates) {
-            alert("Please remove duplicate student IDs before submitting.");
+
+        if (!allInputsValid) {
+            alert("Please correct all participant ID errors (format, department, or duplicates) before submitting.");
             event.preventDefault();
             return false;
         }
-        
+
         // Ensure captain is selected
         let captainId = document.getElementById("captain_id").value;
-        if (!captainId || !studentIds.includes(captainId)) {
+        let studentIdsEntered = Array.from(inputs).map(input => input.value.trim()).filter(id => id !== '');
+        
+        if (!captainId || !studentIdsEntered.includes(captainId)) {
             alert("Please select a valid captain from the participants.");
             event.preventDefault();
             return false;
@@ -639,53 +657,27 @@ document.addEventListener("DOMContentLoaded", function() {
         
         return true;
     });
-    
-    let ulscID = <?php echo json_encode($ulsc_id); ?>.toLowerCase().trim();
-    let ulscDeptMatch = ulscID.match(/\d{2}([a-z]{2})\d{3}/);
+});
 
-    if (!ulscDeptMatch) {
-        console.error("Invalid ULSC ID format!");
-        return;
-    }
-
-    let ulscDept = ulscDeptMatch[1].toLowerCase(); // Extract department code
-
-    let participantContainer = document.getElementById("participantFields");
-    let submitButton = document.getElementById("submit_button");
-    let errorMessage = document.getElementById("error_message");
-
-    if (!participantContainer) {
-        console.error("Participant fields container not found!");
-        return;
-    }
-
-    // Event listener for participant ID validation
-    participantContainer.addEventListener("input", function (event) {
-        if (event.target && event.target.classList.contains("participant_id")) {
-            validateParticipantID(event.target, ulscDept);
+// Helper function to check for duplicates (used in form submission)
+function isDuplicateStudentID(studentIDToCheck) {
+    if (!studentIDToCheck) return false;
+    let inputs = document.querySelectorAll(".student-id-input");
+    let count = 0;
+    for (let input of inputs) {
+        if (input.value.trim() === studentIDToCheck) {
+            count++;
+            if (count > 1) return true;
         }
-    });
-});
-
-// Add this to ensure the event handlers are properly set up
-document.addEventListener("DOMContentLoaded", function() {
-    // Make sure event handlers are properly attached
-    let eventSelect = document.getElementById("eventSelect");
-    if (eventSelect) {
-        console.log("Event select found, attaching onchange handler");
-        eventSelect.addEventListener("change", showParticipantsForm);
-    } else {
-        console.error("Event select element not found!");
     }
-});
+    return false;
+}
 
-// Force display participants section if an event is selected
+// Force display participants section if an event is selected on page load
 document.addEventListener("DOMContentLoaded", function() {
     setTimeout(function() {
         let eventSelect = document.getElementById("eventSelect");
         if (eventSelect && eventSelect.value) {
-            console.log("Force showing participant form for value:", eventSelect.value);
-            
             // Get the participants container
             let participantsContainer = document.getElementById("participantsContainer");
             if (participantsContainer) {
@@ -709,7 +701,6 @@ document.addEventListener("DOMContentLoaded", function() {
                     
                     // Force add the minimum participant rows
                     for (let i = 0; i < parseInt(minParticipants); i++) {
-                        console.log("Adding row", i + 1);
                         addNewParticipantRow();
                     }
                 }

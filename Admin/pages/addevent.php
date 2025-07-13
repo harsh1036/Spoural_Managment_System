@@ -45,18 +45,19 @@ if (isset($_GET['download_template'])) {
     exit;
 }
 
-// Handle delete operation
+// Handle delete operation (SOFT DELETE IMPLEMENTATION)
 if (isset($_GET['delete_id'])) {
     try {
         $delete_id = $_GET['delete_id'];
-        $sql = "DELETE FROM events WHERE id = :id";
+        // Change: Update the 'status' column to 0 instead of deleting the row
+        $sql = "UPDATE events SET status = 0 WHERE id = :id";
         $stmt = $dbh->prepare($sql);
         $stmt->bindParam(':id', $delete_id, PDO::PARAM_INT);
         
         if ($stmt->execute()) {
-            echo "<script>alert('Event deleted successfully!'); window.location.href='addevent.php';</script>";
+            echo "<script>alert('Event Deleted successfully!'); window.location.href='addevent.php';</script>";
         } else {
-            echo "<script>alert('Error deleting event!');</script>";
+            echo "<script>alert('Error Deleting event!');</script>";
         }
     } catch (PDOException $e) {
         echo "<script>alert('Database error: " . $e->getMessage() . "');</script>";
@@ -99,8 +100,8 @@ if (isset($_POST['save_event'])) {
             $stmt = $dbh->prepare($sql);
             $stmt->bindParam(':id', $event_id, PDO::PARAM_INT);
         } else {
-            // Insert new event
-            $sql = "INSERT INTO events (event_name, event_type, min_participants, max_participants) VALUES (:name, :type, :min, :max)";
+            // Insert new event (assuming default status is 1 for active)
+            $sql = "INSERT INTO events (event_name, event_type, min_participants, max_participants, status) VALUES (:name, :type, :min, :max, 1)";
             $stmt = $dbh->prepare($sql);
         }
 
@@ -139,7 +140,8 @@ if (isset($_POST['import'])) {
                         $min_participants = $row[2]; 
                         $max_participants = $row[3];
 
-                        $sql = "INSERT INTO events (event_name, event_type, min_participants, max_participants) VALUES (:name, :type, :min, :max)";
+                        // Insert new event with status = 1
+                        $sql = "INSERT INTO events (event_name, event_type, min_participants, max_participants, status) VALUES (:name, :type, :min, :max, 1)";
                         $stmt = $dbh->prepare($sql);
                         $stmt->bindParam(':name', $event_name, PDO::PARAM_STR);
                         $stmt->bindParam(':type', $event_type, PDO::PARAM_STR);
@@ -254,12 +256,14 @@ if (isset($_POST['import'])) {
                                     <th>Min Participants</th>
                                     <th>Max Participants</th>
                                     <th>Academic Year</th>
+                                    <th>Status</th> <!-- Added Status Column -->
                                     <th>Edit</th>
                                     <th>Remove</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 <?php 
+                                // Fetch events for display (including status)
                                 $query = $dbh->prepare("SELECT e.*, ay.year AS academic_year FROM events e LEFT JOIN academic_years ay ON e.academic_year_id = ay.id ORDER BY e.id DESC");
                                 $query->execute();
                                 $events = $query->fetchAll(PDO::FETCH_ASSOC);
@@ -272,6 +276,7 @@ if (isset($_POST['import'])) {
                                     <td><?= htmlspecialchars($event['min_participants']) ?></td>
                                     <td><?= htmlspecialchars($event['max_participants']) ?></td>
                                     <td><?= htmlspecialchars($event['academic_year'] ?? '-') ?></td>
+                                    <td><?= ($event['status'] == 1) ? 'Active' : 'Inactive'; ?></td> <!-- Display Status -->
                                     <td>
                                         <a href="#" class="edit-event btn btn-sm btn-primary" 
                                            data-id="<?= $event['id'] ?>"
@@ -283,8 +288,8 @@ if (isset($_POST['import'])) {
                                         </a>
                                     </td>
                                     <td>
-                                        <a href="addevent.php?delete_id=<?= $event['id'] ?>" class="btn btn-sm btn-danger" onclick="return confirm('Are you sure?')">
-                                            <i class='bx bx-trash'></i> Delete
+                                        <a href="addevent.php?delete_id=<?= $event['id'] ?>" class="btn btn-sm btn-danger" onclick="return confirm('Are you sure you want to delete this event?');"> <!-- Updated confirmation message -->
+                                            <i class='bx bx-trash'></i> Delete <!-- Changed text to Delete -->
                                         </a>
                                     </td>
                                 </tr>
