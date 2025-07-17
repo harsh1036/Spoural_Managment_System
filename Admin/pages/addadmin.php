@@ -78,9 +78,17 @@ if (isset($_GET['delete_id'])) {
     }
 }
 
-// **FETCH ALL ADMINS**
-$sql = "SELECT * FROM admins";
-$query = $dbh->prepare($sql);
+// **FETCH ADMINS WITH OPTIONAL SEARCH**
+$search = isset($_GET['search']) ? trim($_GET['search']) : '';
+if ($search !== '') {
+    $sql = "SELECT * FROM admins WHERE admin_id LIKE :search OR admin_name LIKE :search";
+    $query = $dbh->prepare($sql);
+    $likeSearch = "%$search%";
+    $query->bindParam(':search', $likeSearch, PDO::PARAM_STR);
+} else {
+    $sql = "SELECT * FROM admins";
+    $query = $dbh->prepare($sql);
+}
 $query->execute();
 $admins = $query->fetchAll(PDO::FETCH_ASSOC);
 ?>
@@ -123,7 +131,8 @@ $admins = $query->fetchAll(PDO::FETCH_ASSOC);
 
             <section class="view-admin-details">
                 <h2>View Admin Details</h2>
-                <table border="2px" class="table table-bordered table-striped small-table">
+                <input type="text" id="adminSearch" placeholder="Search by Admin ID or Name" class="form-control mb-3" style="max-width: 300px;">
+                <table border="2px" class="table table-bordered table-striped small-table" id="adminTable">
                     <thead>
                         <tr>
                             <th>ID</th>
@@ -187,6 +196,26 @@ $admins = $query->fetchAll(PDO::FETCH_ASSOC);
 
                     // Scroll to form
                     document.querySelector('.new-admin').scrollIntoView({ behavior: 'smooth' });
+                });
+            });
+        });
+    </script>
+    <script>
+        // Live search for admin table
+        document.addEventListener('DOMContentLoaded', function() {
+            const searchInput = document.getElementById('adminSearch');
+            const table = document.getElementById('adminTable');
+            searchInput.addEventListener('input', function() {
+                const filter = searchInput.value.toLowerCase();
+                const rows = table.querySelectorAll('tbody tr');
+                rows.forEach(row => {
+                    const adminId = row.children[1].textContent.toLowerCase();
+                    const adminName = row.children[2].textContent.toLowerCase();
+                    if (adminId.includes(filter) || adminName.includes(filter)) {
+                        row.style.display = '';
+                    } else {
+                        row.style.display = 'none';
+                    }
                 });
             });
         });

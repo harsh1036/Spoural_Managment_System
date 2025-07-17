@@ -158,82 +158,40 @@ function generateEventTable($pdf, $dbh, $eventId, $eventName, $departmentId, $ul
         $participantCount = count($participants);
 
         // Start building the table
-        $table = '<style>
-                    .header { 
-                        background-color: #4a6fdc; 
-                        color: white; 
-                        font-weight: bold;
-                        font-size: 11pt;
-                    }
-                    .subheader {
-                        background-color: #f2f6ff;
-                        font-weight: bold;
-                    }
-                    .data-row {
-                        background-color: #ffffff;
-                    }
-                    .alt-row {
-                        background-color: #f5f9ff;
-                    }
-                    .no-data {
-                        background-color: #fff8e6;
-                        font-style: italic;
-                    }
-                </style>';
+        $table = '<style></style>';
 
-        $table .= '<table border="1" cellpadding="8" style="width:100%; border-collapse:collapse; font-family:helvetica; border:1px solid #ddd;">';
+        $table .= '<table border="1" cellpadding="3" style="width:100%; border-collapse:collapse; font-family:helvetica; border:1px solid #000;">';
         
-        // ULSC and Event Name header row with normal borders
-        $table .= '<tr class="header">
-                    <th style="width:40%;text-align:center;padding:12px;border:1px solid #ddd;">ULSC NAME</th>
-                    <th style="width:40%;text-align:center;padding:12px;border:1px solid #ddd;">EVENT NAME</th>
-                    <th style="width:20%;text-align:center;padding:12px;border:1px solid #ddd;">TOTAL PARTICIPANTS</th>
+        // Header row
+        $table .= '<tr>
+                    <th style="width:35%;text-align:center;padding:6px;border:1px solid #000;font-weight:normal;vertical-align:middle;">ULSC NAME</th>
+                    <th style="width:35%;text-align:center;padding:6px;border:1px solid #000;font-weight:normal;vertical-align:middle;">EVENT NAME</th>
+                    <th style="width:30%;text-align:center;padding:6px;border:1px solid #000;font-weight:normal;vertical-align:middle;">TOTAL<br>PARTICIPANTS</th>
                    </tr>';
-                   
-        // Show only logged-in ULSC name instead of all ULSC names
-        $table .= '<tr class="subheader">
-                    <td style="text-align:center;padding:12px;border:1px solid #ddd;">' . htmlspecialchars($ulscName) . '</td>
-                    <td style="text-align:center;padding:12px;border:1px solid #ddd;">' . htmlspecialchars($eventName) . '</td>
-                    <td style="text-align:center;padding:12px;border:1px solid #ddd;">' . $participantCount . '</td>
+        // Data row
+        $table .= '<tr>
+                    <td style="text-align:center;padding:6px;border:1px solid #000;font-weight:normal;">' . htmlspecialchars($ulscName) . '</td>
+                    <td style="text-align:center;padding:6px;border:1px solid #000;font-weight:normal;">' . htmlspecialchars($eventName) . '</td>
+                    <td style="text-align:center;padding:6px;border:1px solid #000;font-weight:normal;">' . $participantCount . '</td>
                    </tr>';
-
+        // STUDENT IDS row
+        $table .= '<tr>
+                    <td colspan="3" style="text-align:center;padding:6px;border:1px solid #000;font-weight:normal;">STUDENT IDS</td>
+                   </tr>';
+        // Student IDs (each on a new line)
         if (!empty($participants)) {
-            // Student IDs and Names header with normal borders
-            $table .= '<tr class="header">
-                        <td style="text-align:center;padding:12px;border:1px solid #ddd;">
-                            STUDENT ID
-                        </td>
-                        <td colspan="2" style="text-align:center;padding:12px;border:1px solid #ddd;">
-                            STUDENT NAME
-                        </td>
+            $ids = array_map(function($student) { return htmlspecialchars($student["student_id"]); }, $participants);
+            $table .= '<tr>
+                        <td colspan="3" style="text-align:center;padding:6px;border:1px solid #000;font-weight:normal;">' . implode('<br>', $ids) . '</td>
                        </tr>';
-            
-            // Student IDs and Names list with normal borders
-            $rowCount = 0;
-            foreach ($participants as $student) {
-                $bgColor = ($rowCount++ % 2 == 0) ? '#ffffff' : '#f5f9ff';
-                $studentName = isset($student['student_name']) ? htmlspecialchars($student['student_name']) : 'Name not found';
-                $table .= '<tr>
-                            <td style="text-align:center;padding:10px;border:1px solid #ddd;background-color:'.$bgColor.';">
-                                ' . htmlspecialchars($student['student_id']) . '
-                            </td>
-                            <td colspan="2" style="text-align:center;padding:10px;border:1px solid #ddd;background-color:'.$bgColor.';">
-                                ' . $studentName . '
-                            </td>
-                           </tr>';
-            }
         } else {
-            $table .= '<tr class="no-data">
-                        <td colspan="3" style="text-align:center;padding:12px;border:1px solid #ddd;">
-                            No registered participants for this event in your department.
-                        </td>
+            $table .= '<tr>
+                        <td colspan="3" style="text-align:center;padding:6px;border:1px solid #000;font-weight:normal;">No registered participants for this event in your department.</td>
                       </tr>';
         }
-
         $table .= '</table>';
-        
         $pdf->writeHTML($table, true, false, true, false, '');
-        $pdf->Ln(15);
+        $pdf->Ln(8);
 
     } catch (PDOException $e) {
         error_log("Database error: " . $e->getMessage());

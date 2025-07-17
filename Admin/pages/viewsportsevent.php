@@ -154,7 +154,8 @@ $all_departments = $dbh->query("SELECT * FROM departments ORDER BY dept_name")->
                     if (!empty($participants)) {
                         echo "<section class='view-admin-details'>";
                         echo "<h2 class='cntr'>Participants List for " . htmlspecialchars($event_name) . "</h2>";
-                        echo "<table border='2px' class='cntr table table-bordered table-striped small-table participants-table'>";
+                        echo "<input type='text' id='eventWiseSearch' placeholder='Search participants...' class='form-control mb-3' style='max-width: 300px;'>";
+                        echo "<table border='2px' class='cntr table table-bordered table-striped small-table participants-table' id='eventWiseTable'>";
                         echo "<thead><tr><th><center>Participant ID</th><th><center>Student Name</th><th><center>Department</th></tr></thead>";
                         echo "<tbody>";
                         foreach ($participants as $participant) {
@@ -220,7 +221,8 @@ $all_departments = $dbh->query("SELECT * FROM departments ORDER BY dept_name")->
                     if (!empty($participants)) {
                         echo "<section class='view-admin-details'>";
                         echo "<h2 class='cntr'>Sports Participants for Department: " . htmlspecialchars($dept_name) . "</h2>";
-                        echo "<table border='2px' class='cntr table table-bordered table-striped small-table participants-table'>";
+                        echo "<input type='text' id='deptWiseSearch' placeholder='Search participants...' class='form-control mb-3' style='max-width: 300px;'>";
+                        echo "<table border='2px' class='cntr table table-bordered table-striped small-table participants-table' id='deptWiseTable'>";
                         echo "<thead><tr><th><center>Participant ID</th><th><center>Student Name</th><th><center>Event Name</th></tr></thead>";
                         echo "<tbody>";
                         foreach ($participants as $participant) {
@@ -306,6 +308,36 @@ document.addEventListener('DOMContentLoaded', function() {
                 resultsDiv.innerHTML = newResults.innerHTML;
             }
         });
+    });
+
+    // Live search for event-wise participants
+    document.addEventListener('input', function(e) {
+        if (e.target && e.target.id === 'eventWiseSearch') {
+            const filter = e.target.value.toLowerCase();
+            const rows = document.querySelectorAll('#eventWiseTable tbody tr');
+            rows.forEach(row => {
+                let match = false;
+                row.querySelectorAll('td').forEach(cell => {
+                    if (cell.textContent.toLowerCase().includes(filter)) {
+                        match = true;
+                    }
+                });
+                row.style.display = match ? '' : 'none';
+            });
+        }
+        if (e.target && e.target.id === 'deptWiseSearch') {
+            const filter = e.target.value.toLowerCase();
+            const rows = document.querySelectorAll('#deptWiseTable tbody tr');
+            rows.forEach(row => {
+                let match = false;
+                row.querySelectorAll('td').forEach(cell => {
+                    if (cell.textContent.toLowerCase().includes(filter)) {
+                        match = true;
+                    }
+                });
+                row.style.display = match ? '' : 'none';
+            });
+        }
     });
 });
 </script>

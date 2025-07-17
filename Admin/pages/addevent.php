@@ -246,8 +246,9 @@ if (isset($_POST['import'])) {
                 <!-- Move View Events table here -->
                 <section class="event-table">
                     <h3>View Events</h3>
+                    <input type="text" id="eventSearch" placeholder="Search events..." class="form-control mb-3" style="max-width: 300px;">
                     <div class="table-scroll" style="max-height: 400px; overflow-y: auto;">
-                        <table border='2px' class='cntr table table-bordered table-striped small-table participants-table'>
+                        <table border='2px' class='cntr table table-bordered table-striped small-table participants-table' id="eventTable">
                             <thead>
                                 <tr>
                                     <th>Event ID</th>
@@ -480,6 +481,26 @@ if (isset($_POST['import'])) {
 
                 // Scroll to form
                 document.querySelector('.event-form').scrollIntoView({ behavior: 'smooth' });
+            });
+        });
+    </script>
+    <script>
+        // Live search for event table
+        document.addEventListener('DOMContentLoaded', function() {
+            const searchInput = document.getElementById('eventSearch');
+            const table = document.getElementById('eventTable');
+            searchInput.addEventListener('input', function() {
+                const filter = searchInput.value.toLowerCase();
+                const rows = table.querySelectorAll('tbody tr');
+                rows.forEach(row => {
+                    let match = false;
+                    row.querySelectorAll('td').forEach(cell => {
+                        if (cell.textContent.toLowerCase().includes(filter)) {
+                            match = true;
+                        }
+                    });
+                    row.style.display = match ? '' : 'none';
+                });
             });
         });
     </script>

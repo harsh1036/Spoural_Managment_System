@@ -395,8 +395,9 @@ if (isset($_POST['save_ulsc'])) {
                 <!-- Move View ULSC Details table here -->
                 <section class="ulsc-table">
                     <h3>View ULSC Details</h3>
+                    <input type="text" id="ulscSearch" placeholder="Search ULSC..." class="form-control mb-3" style="max-width: 300px;">
                     <div class="table-scroll" style="max-height: 400px; overflow-y: auto;">
-                        <table border='2px' class='cntr table table-bordered table-striped small-table participants-table'>
+                        <table border='2px' class='cntr table table-bordered table-striped small-table participants-table' id="ulscTable">
                             <thead>
                                 <tr>
                                     <th>Sr.no</th>
@@ -688,6 +689,26 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 </script>
+    <script>
+        // Live search for ULSC table
+        document.addEventListener('DOMContentLoaded', function() {
+            const searchInput = document.getElementById('ulscSearch');
+            const table = document.getElementById('ulscTable');
+            searchInput.addEventListener('input', function() {
+                const filter = searchInput.value.toLowerCase();
+                const rows = table.querySelectorAll('tbody tr');
+                rows.forEach(row => {
+                    let match = false;
+                    row.querySelectorAll('td').forEach(cell => {
+                        if (cell.textContent.toLowerCase().includes(filter)) {
+                            match = true;
+                        }
+                    });
+                    row.style.display = match ? '' : 'none';
+                });
+            });
+        });
+    </script>
 </body>
 
 </html>
