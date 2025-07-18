@@ -158,8 +158,7 @@ function generateEventTable($pdf, $dbh, $eventId, $eventName, $departmentId, $ul
         $participantCount = count($participants);
 
         // Start building the table
-        $table = '<style></style>';
-
+        $table = '<div style="page-break-inside: avoid;">';
         $table .= '<table border="1" cellpadding="3" style="width:100%; border-collapse:collapse; font-family:helvetica; border:1px solid #000;">';
         
         // Header row
@@ -189,7 +188,7 @@ function generateEventTable($pdf, $dbh, $eventId, $eventName, $departmentId, $ul
                         <td colspan="3" style="text-align:center;padding:6px;border:1px solid #000;font-weight:normal;">No registered participants for this event in your department.</td>
                       </tr>';
         }
-        $table .= '</table>';
+        $table .= '</table></div>';
         $pdf->writeHTML($table, true, false, true, false, '');
         $pdf->Ln(8);
 

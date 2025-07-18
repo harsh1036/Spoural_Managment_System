@@ -477,9 +477,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['login'])) {
                                     <div class="grid--50-50">
                                         <label for="password">Password</label>
                                     </div>
-                                    <div class="input-container icon-field">
+                                    <div class="input-container icon-field" style="position: relative;">
                                         <i class='bx bx-lock-alt input-icon'></i>
                                         <input type="password" name="password" id="password" placeholder="Enter your password" required>
+                                        <i class='bx bx-show input-icon' id="togglePassword" 
+                                           style="right: 14px; left: auto; cursor: pointer; position: absolute;"></i>
                                     </div>
                                     <div class="reset-pass">
                                         <a href="Excel/resetpassword1.php">Forgot your password?</a>
@@ -504,5 +506,20 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['login'])) {
         </div>
     </div>
 </body>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const passwordInput = document.getElementById('password');
+    const togglePassword = document.getElementById('togglePassword');
+
+    togglePassword.addEventListener('mouseenter', function() {
+        passwordInput.type = 'text';
+    });
+
+    togglePassword.addEventListener('mouseleave', function() {
+        passwordInput.type = 'password';
+    });
+});
+</script>
 
 </html>
