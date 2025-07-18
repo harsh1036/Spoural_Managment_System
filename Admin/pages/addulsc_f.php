@@ -183,7 +183,7 @@ if (isset($_POST['save_ulsc'])) {
         }
 
         // Generate email and password (only for new entries, or if you intend to re-set on edit)
-        $email = $id_form . "@charusat.edu.in";
+        // $email = $id_form . "@charusat.edu.in";
         $plain_password = "1234";
         $hashed_password = password_hash($plain_password, PASSWORD_BCRYPT);
 
@@ -405,7 +405,7 @@ if (isset($_POST['save_ulsc'])) {
                                     <th>Full Name</th>
                                     <th>Department</th>
                                     <th>Contact Number</th>
-                                    <th>Email</th>
+                                    <!-- <th>Email</th> -->
                                     <!-- <th>Status</th> -->
                                     <th>Edit</th>
                                     <th>Remove</th>
