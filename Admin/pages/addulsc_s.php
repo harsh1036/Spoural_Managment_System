@@ -50,7 +50,7 @@ if (isset($_GET['delete_id'])) {
         $stmt->bindParam(':id', $delete_id, PDO::PARAM_INT);
         
         if ($stmt->execute()) {
-            echo "<script>alert('ULSC deleted successfully!'); window.location.href='addulsc.php';</script>";
+            echo "<script>alert('ULSC deleted successfully!'); window.location.href='addulsc_s.php';</script>";
         } else {
             echo "<script>alert('Error deleting ULSC!');</script>";
         }
@@ -105,7 +105,7 @@ if (isset($_POST['import'])) {
             
             // Validate column names
             if ($rows[0] !== $expectedColumns) {
-                echo "<script>alert('Error: Column names do not match the expected format!'); window.location.href='addulsc.php';</script>";
+                echo "<script>alert('Error: Column names do not match the expected format!'); window.location.href='addulsc_s.php';</script>";
                 exit;
             } else {
                 try {
@@ -144,21 +144,21 @@ if (isset($_POST['import'])) {
                     }
                     
                     $dbh->commit();
-                    echo "<script>alert('Data imported successfully!'); window.location.href='addulsc.php';</script>";
+                    echo "<script>alert('Data imported successfully!'); window.location.href='addulsc_s.php';</script>";
                     exit;
                     
                 } catch (Exception $e) {
                     $dbh->rollBack();
-                    echo "<script>alert('Error: " . addslashes($e->getMessage()) . "'); window.location.href='addulsc.php';</script>";
+                    echo "<script>alert('Error: " . addslashes($e->getMessage()) . "'); window.location.href='addulsc_s.php';</script>";
                     exit;
                 }
             }
         } else {
-            echo "<script>alert('Failed to parse Excel file!'); window.location.href='addulsc.php';</script>";
+            echo "<script>alert('Failed to parse Excel file!'); window.location.href='addulsc_s.php';</script>";
             exit;
         }
     } else {
-        echo "<script>alert('Error uploading file!'); window.location.href='addulsc.php';</script>";
+        echo "<script>alert('Error uploading file!'); window.location.href='addulsc_s.php';</script>";
         exit;
     }
 }
@@ -239,7 +239,7 @@ if (isset($_POST['save_ulsc'])) {
             } else {
                 $message = "ULSC updated successfully!";
             }
-            echo "<script>alert('$message'); window.location.href='addulsc.php';</script>";
+            echo "<script>alert('$message'); window.location.href='addulsc_s.php';</script>";
         } else {
             throw new Exception("Error executing query: " . print_r($stmt->errorInfo(), true));
         }
@@ -438,7 +438,7 @@ if (isset($_POST['save_ulsc'])) {
                                         </button>
                                     </td>
                                     <td>
-                                        <a href="addulsc.php?delete_id=<?= $row['id'] ?>" 
+                                        <a href="addulsc_s.php?delete_id=<?= $row['id'] ?>" 
                                            class="btn btn-sm btn-danger"
                                            onclick="return confirm('Are you sure you want to delete this ULSC member?')">
                                             <i class='bx bx-trash'></i> Delete
@@ -562,7 +562,7 @@ if (isset($_POST['save_ulsc'])) {
                                         </button>
                                     </td>
                                     <td>
-                                        <a href="addulsc.php?delete_id=<?= $row['id'] ?>" 
+                                        <a href="addulsc_s.php?delete_id=<?= $row['id'] ?>" 
                                            class="btn btn-sm btn-danger"
                                            onclick="return confirm('Are you sure you want to delete this ULSC member?')">
                                             <i class='bx bx-trash'></i> Delete

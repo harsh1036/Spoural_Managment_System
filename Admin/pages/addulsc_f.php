@@ -6,7 +6,7 @@ use Shuchkin\SimpleXLSX;
 
 include('../includes/session_management.php');
 include('../includes/config.php');
-include('sendMail.php');
+include('sendMail.php'); // Assuming sendMail.php contains the sendULSCEmail function
 
 // Enable error reporting
 error_reporting(E_ALL);
@@ -22,7 +22,7 @@ try {
 }
 
 // Initialize variables
-$id = $ulsc_id = $ulsc_name = $dept_id = $contact = "";
+$id = $fullname = $dept_id = $contact_no = ""; // Changed ulsc_id to id, ulsc_name to fullname, contact to contact_no
 $message = "";
 
 // Check if user is logged in, else redirect to login
@@ -34,7 +34,8 @@ if (!isset($_SESSION['login'])) {
 // Fetch session data
 $admin_username = $_SESSION['login'];
 
-// Fetch academic years from the database
+// Academic years are not in ulsc_f table, so this block might be irrelevant for ULSC_F.
+// Keeping it for now if it's used elsewhere in the page.
 $academicYears = [];
 $yearQuery = $dbh->query("SELECT year FROM academic_years ORDER BY year DESC");
 if ($yearQuery) {
@@ -45,35 +46,34 @@ if ($yearQuery) {
 if (isset($_GET['delete_id'])) {
     try {
         $delete_id = $_GET['delete_id'];
-        $sql = "DELETE FROM ulsc WHERE id = :id";
+        $sql = "DELETE FROM ulsc_f WHERE id = :id"; // Changed table to ulsc_f
         $stmt = $dbh->prepare($sql);
         $stmt->bindParam(':id', $delete_id, PDO::PARAM_INT);
         
         if ($stmt->execute()) {
-            echo "<script>alert('ULSC deleted successfully!'); window.location.href='addulsc.php';</script>";
+            echo "<script>alert('ULSC Faculty deleted successfully!'); window.location.href='addulsc_f.php';</script>";
         } else {
-            echo "<script>alert('Error deleting ULSC!');</script>";
+            echo "<script>alert('Error deleting ULSC Faculty!');</script>";
         }
     } catch (PDOException $e) {
         echo "<script>alert('Database error: " . $e->getMessage() . "');</script>";
     }
 }
 
-// Handle edit operation - fetch ULSC data
+// Handle edit operation - fetch ULSC Faculty data
 if (isset($_GET['edit_id'])) {
     try {
         $edit_id = $_GET['edit_id'];
-        $sql = "SELECT * FROM ulsc WHERE id = :id";
+        $sql = "SELECT * FROM ulsc_f WHERE id = :id"; // Changed table to ulsc_f
         $stmt = $dbh->prepare($sql);
         $stmt->bindParam(':id', $edit_id, PDO::PARAM_INT);
         $stmt->execute();
         
-        if ($ulsc = $stmt->fetch(PDO::FETCH_ASSOC)) {
-            $id = $ulsc['id'];
-            $ulsc_id = $ulsc['ulsc_id'];
-            $ulsc_name = $ulsc['ulsc_name'];
-            $dept_id = $ulsc['dept_id'];
-            $contact = $ulsc['contact'];
+        if ($ulsc_f_data = $stmt->fetch(PDO::FETCH_ASSOC)) { // Renamed variable
+            $id = $ulsc_f_data['id'];
+            $fullname = $ulsc_f_data['fullname']; // Changed ulsc_name to fullname
+            $dept_id = $ulsc_f_data['dept_id'];
+            $contact_no = $ulsc_f_data['contact_no']; // Changed contact to contact_no
         }
     } catch (PDOException $e) {
         echo "<script>alert('Database error: " . $e->getMessage() . "');</script>";
@@ -82,15 +82,17 @@ if (isset($_GET['edit_id'])) {
 
 // Function to generate and download the Excel template
 if (isset($_GET['download_template'])) {
-    // Fetch column names dynamically from the ulsc table using PDO
+    // Fetch column names dynamically from the ulsc_f table
     $columns = [];
-    $stmt = $dbh->query("SHOW COLUMNS FROM ulsc");
+    $stmt = $dbh->query("SHOW COLUMNS FROM ulsc_f"); // Changed table to ulsc_f
     while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
         $columns[] = $row['Field'];
     }
+    // Remove 'password' and 'status' from template as they are auto-generated/defaulted
+    $columns = array_diff($columns, ['password', 'status', 'email']); 
     $data = [ $columns ]; // Column headers
     $xlsx = SimpleXLSXGen::fromArray($data);
-    $xlsx->downloadAs('ULSC_Template.xlsx');
+    $xlsx->downloadAs('ULSC_Faculty_Template.xlsx');
     exit;
 }
 
@@ -101,64 +103,64 @@ if (isset($_POST['import'])) {
         
         if ($xlsx = SimpleXLSX::parse($file)) {
             $rows = $xlsx->rows();
-            $expectedColumns = ['ulsc_id', 'ulsc_name', 'dept_id', 'contact'];
+            $expectedColumns = ['id', 'fullname', 'dept_id', 'contact_no']; // Updated expected columns
             
             // Validate column names
             if ($rows[0] !== $expectedColumns) {
-                echo "<script>alert('Error: Column names do not match the expected format!'); window.location.href='addulsc.php';</script>";
+                echo "<script>alert('Error: Column names do not match the expected format! Expected: " . implode(', ', $expectedColumns) . "'); window.location.href='addulsc_f.php';</script>";
                 exit;
             } else {
                 try {
                     $dbh->beginTransaction();
                     
                     foreach (array_slice($rows, 1) as $row) {
-                        $ulsc_id = $row[0]; 
-                        $ulsc_name = $row[1]; 
+                        $id_excel = $row[0]; // 'id' from Excel
+                        $fullname = $row[1]; 
                         $dept_id = $row[2]; 
-                        $contact = $row[3];
+                        $contact_no = $row[3];
 
                         // Generate email and password
-                        $email = $ulsc_id . "@charusat.edu.in";
+                        $email = $id_excel . "@charusat.edu.in";
                         $plain_password = "1234";
                         $hashed_password = password_hash($plain_password, PASSWORD_BCRYPT);
 
-                        // Check if ULSC ID already exists
-                        $check_sql = "SELECT COUNT(*) FROM ulsc WHERE ulsc_id = :ulsc_id";
+                        // Check if ULSC Faculty ID (which is 'id' in ulsc_f) already exists
+                        $check_sql = "SELECT COUNT(*) FROM ulsc_f WHERE id = :id"; // Changed table to ulsc_f, column to id
                         $check_stmt = $dbh->prepare($check_sql);
-                        $check_stmt->bindParam(':ulsc_id', $ulsc_id, PDO::PARAM_STR);
+                        $check_stmt->bindParam(':id', $id_excel, PDO::PARAM_INT); // Bind as INT for 'id'
                         $check_stmt->execute();
                         
                         if ($check_stmt->fetchColumn() > 0) {
-                            throw new Exception("ULSC ID $ulsc_id already exists");
+                            throw new Exception("ULSC Faculty ID $id_excel already exists"); // Updated message
                         }
 
-                        $sql = "INSERT INTO ulsc (ulsc_id, ulsc_name, dept_id, contact, email, password) VALUES (:ulsc_id, :ulsc_name, :dept_id, :contact, :email, :password)";
+                        $sql = "INSERT INTO ulsc_f (id, fullname, dept_id, contact_no, email, password, status) VALUES (:id, :fullname, :dept_id, :contact_no, :email, :password, 1)"; // Changed table to ulsc_f, columns to fullname, contact_no, added status
                         $stmt = $dbh->prepare($sql);
-                        $stmt->bindParam(':ulsc_id', $ulsc_id, PDO::PARAM_STR);
-                        $stmt->bindParam(':ulsc_name', $ulsc_name, PDO::PARAM_STR);
+                        $stmt->bindParam(':id', $id_excel, PDO::PARAM_INT);
+                        $stmt->bindParam(':fullname', $fullname, PDO::PARAM_STR);
                         $stmt->bindParam(':dept_id', $dept_id, PDO::PARAM_INT);
-                        $stmt->bindParam(':contact', $contact, PDO::PARAM_STR);
+                        $stmt->bindParam(':contact_no', $contact_no, PDO::PARAM_STR);
                         $stmt->bindParam(':email', $email, PDO::PARAM_STR);
                         $stmt->bindParam(':password', $hashed_password, PDO::PARAM_STR);
                         $stmt->execute();
                     }
                     
                     $dbh->commit();
-                    echo "<script>alert('Data imported successfully!'); window.location.href='addulsc.php';</script>";
+                    echo "<script>alert('Data imported successfully!'); window.location.href='addulsc_f.php';</script>";
                     exit;
                     
                 } catch (Exception $e) {
                     $dbh->rollBack();
-                    echo "<script>alert('Error: " . addslashes($e->getMessage()) . "'); window.location.href='addulsc.php';</script>";
+                    echo "<script>alert('Error: " . addslashes($e->getMessage()) . "'); window.location.href='addulsc_f.php';</script>";
                     exit;
                 }
             }
         } else {
-            echo "<script>alert('Failed to parse Excel file!'); window.location.href='addulsc.php';</script>";
+            echo "<script>alert('Failed to parse Excel file!'); window.location.href='addulsc_f.php';</script>";
             exit;
         }
     } else {
-        echo "<script>alert('Error uploading file!'); window.location.href='addulsc.php';</script>";
+        echo "<script>alert('Error uploading file!'); window.location.href='addulsc_f.php';</script>";
         exit;
     }
 }
@@ -169,56 +171,56 @@ if (isset($_POST['save_ulsc'])) {
     
     try {
         // Get form data
-        $ulsc_id = trim($_POST['ulsc_id']);
-        $ulsc_name = trim($_POST['ulsc_name']);
+        $id_form = trim($_POST['id']); // This is the ULSC Faculty ID (primary key)
+        $fullname = trim($_POST['fullname']); // Changed to fullname
         $dept_id = trim($_POST['dept_id']);
-        $contact = trim($_POST['contact']);
-        $id = isset($_POST['id']) ? trim($_POST['id']) : '';
+        $contact_no = trim($_POST['contact_no']); // Changed to contact_no
+        $current_id = isset($_POST['current_id']) ? trim($_POST['current_id']) : ''; // Use a hidden field for original ID during edit
 
         // Validate form data
-        if (empty($ulsc_id) || empty($ulsc_name) || empty($dept_id) || empty($contact)) {
+        if (empty($id_form) || empty($fullname) || empty($dept_id) || empty($contact_no)) {
             throw new Exception("All fields are required");
         }
 
-        // Generate email and password
-        $email = $ulsc_id . "@charusat.edu.in";
+        // Generate email and password (only for new entries, or if you intend to re-set on edit)
+        $email = $id_form . "@charusat.edu.in";
         $plain_password = "1234";
         $hashed_password = password_hash($plain_password, PASSWORD_BCRYPT);
 
         // Begin transaction
         $dbh->beginTransaction();
 
-        if (!empty($id)) {
-            // Update existing ULSC
-            $sql = "UPDATE ulsc SET ulsc_id = :ulsc_id, ulsc_name = :ulsc_name, dept_id = :dept_id, contact = :contact WHERE id = :id";
+        if (!empty($current_id)) { // If current_id is present, it's an update
+            // Update existing ULSC Faculty
+            $sql = "UPDATE ulsc_f SET id = :new_id, fullname = :fullname, dept_id = :dept_id, contact_no = :contact_no WHERE id = :current_id"; // Changed table to ulsc_f, columns, and added :current_id for WHERE clause
             error_log("Update SQL: " . $sql);
             
             $stmt = $dbh->prepare($sql);
-            $stmt->bindParam(':id', $id, PDO::PARAM_INT);
-            $stmt->bindParam(':ulsc_id', $ulsc_id, PDO::PARAM_STR);
-            $stmt->bindParam(':ulsc_name', $ulsc_name, PDO::PARAM_STR);
+            $stmt->bindParam(':new_id', $id_form, PDO::PARAM_INT); // New ID for update
+            $stmt->bindParam(':fullname', $fullname, PDO::PARAM_STR);
             $stmt->bindParam(':dept_id', $dept_id, PDO::PARAM_INT);
-            $stmt->bindParam(':contact', $contact, PDO::PARAM_STR);
+            $stmt->bindParam(':contact_no', $contact_no, PDO::PARAM_STR);
+            $stmt->bindParam(':current_id', $current_id, PDO::PARAM_INT); // Original ID
         } else {
-            // Check if ULSC ID already exists
-            $check_sql = "SELECT COUNT(*) FROM ulsc WHERE ulsc_id = :ulsc_id";
+            // Check if ULSC Faculty ID already exists for new entry
+            $check_sql = "SELECT COUNT(*) FROM ulsc_f WHERE id = :id"; // Changed table to ulsc_f, column to id
             $check_stmt = $dbh->prepare($check_sql);
-            $check_stmt->bindParam(':ulsc_id', $ulsc_id, PDO::PARAM_STR);
+            $check_stmt->bindParam(':id', $id_form, PDO::PARAM_INT);
             $check_stmt->execute();
             
             if ($check_stmt->fetchColumn() > 0) {
-                throw new Exception("ULSC ID already exists");
+                throw new Exception("ULSC Faculty ID already exists");
             }
 
-            // Insert new ULSC
-            $sql = "INSERT INTO ulsc (ulsc_id, ulsc_name, dept_id, contact, email, password) VALUES (:ulsc_id, :ulsc_name, :dept_id, :contact, :email, :password)";
+            // Insert new ULSC Faculty
+            $sql = "INSERT INTO ulsc_f (id, fullname, dept_id, contact_no, email, password, status) VALUES (:id, :fullname, :dept_id, :contact_no, :email, :password, 1)"; // Changed table to ulsc_f, columns, added status
             error_log("Insert SQL: " . $sql);
             
             $stmt = $dbh->prepare($sql);
-            $stmt->bindParam(':ulsc_id', $ulsc_id, PDO::PARAM_STR);
-            $stmt->bindParam(':ulsc_name', $ulsc_name, PDO::PARAM_STR);
+            $stmt->bindParam(':id', $id_form, PDO::PARAM_INT);
+            $stmt->bindParam(':fullname', $fullname, PDO::PARAM_STR);
             $stmt->bindParam(':dept_id', $dept_id, PDO::PARAM_INT);
-            $stmt->bindParam(':contact', $contact, PDO::PARAM_STR);
+            $stmt->bindParam(':contact_no', $contact_no, PDO::PARAM_STR);
             $stmt->bindParam(':email', $email, PDO::PARAM_STR);
             $stmt->bindParam(':password', $hashed_password, PDO::PARAM_STR);
         }
@@ -229,17 +231,19 @@ if (isset($_POST['save_ulsc'])) {
         
         if ($result) {
             $dbh->commit();
-            if (empty($id)) {
+            if (empty($current_id)) { // Check for empty current_id for new entry
                 // Send email for new entries
-                if (sendULSCEmail($ulsc_name, $email, $plain_password)) {
-                    $message = "ULSC added successfully with email: $email and default password: 1234";
+                // Consider if you want to send email with plain password for faculties.
+                // Assuming sendULSCEmail function exists and accepts these parameters.
+                if (sendULSCEmail($fullname, $email, $plain_password)) { // Pass fullname instead of ulsc_name
+                    $message = "ULSC Faculty added successfully with email: $email and default password: 1234";
                 } else {
-                    $message = "ULSC added successfully with email: $email and default password: 1234. Email sending failed.";
+                    $message = "ULSC Faculty added successfully with email: $email and default password: 1234. Email sending failed.";
                 }
             } else {
-                $message = "ULSC updated successfully!";
+                $message = "ULSC Faculty updated successfully!";
             }
-            echo "<script>alert('$message'); window.location.href='addulsc.php';</script>";
+            echo "<script>alert('$message'); window.location.href='addulsc_f.php';</script>";
         } else {
             throw new Exception("Error executing query: " . print_r($stmt->errorInfo(), true));
         }
@@ -380,9 +384,7 @@ if (isset($_POST['save_ulsc'])) {
         <div class="participant-entry-container">
             <div class="content-card">
                 <div class="content-header">
-                    <h2><i class='bx bx-football'></i> ULSC</h2>
-
-                    <div style="margin-top: 10px;">
+                    <h2><i class='bx bx-group'></i> ULSC Faculty</h2> <div style="margin-top: 10px;">
                         <label for="academicYear">Academic Year: </label>
                         <select id="academicYear" name="academicYear">
                             <?php foreach ($academicYears as $year): ?>
@@ -392,27 +394,29 @@ if (isset($_POST['save_ulsc'])) {
                     </div>
                 </div>
 
-                <!-- Move View ULSC Details table here -->
                 <section class="ulsc-table">
-                    <h3>View ULSC Details</h3>
-                    <input type="text" id="ulscSearch" placeholder="Search ULSC..." class="form-control mb-3" style="max-width: 300px;">
+                    <h3>View ULSC Faculty Details</h3>
                     <div class="table-scroll" style="max-height: 400px; overflow-y: auto;">
                         <table border='2px' class='cntr table table-bordered table-striped small-table participants-table' id="ulscTable">
                             <thead>
                                 <tr>
                                     <th>Sr.no</th>
-                                    <th>ULSC ID</th>
-                                    <th>ULSC Name</th>
+                                    <th>ULSC Faculty ID</th>
+                                    <th>Full Name</th>
                                     <th>Department</th>
                                     <th>Contact Number</th>
-                                    <th>Academic Year</th>
+                                    <th>Email</th>
+                                    <!-- <th>Status</th> -->
                                     <th>Edit</th>
                                     <th>Remove</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 <?php 
-                                $sql = "SELECT ulsc.*, departments.dept_name, ay.year AS academic_year FROM ulsc JOIN departments ON ulsc.dept_id = departments.dept_id LEFT JOIN academic_years ay ON ulsc.academic_year_id = ay.id";
+                                // SQL query adapted for ulsc_f table and its columns
+                                $sql = "SELECT ulsc_f.id, ulsc_f.fullname, departments.dept_name, ulsc_f.contact_no, ulsc_f.email, ulsc_f.status 
+                                        FROM ulsc_f 
+                                        JOIN departments ON ulsc_f.dept_id = departments.dept_id";
                                 $query = $dbh->prepare($sql);
                                 $query->execute();
                                 $results = $query->fetchAll(PDO::FETCH_ASSOC);
@@ -421,26 +425,26 @@ if (isset($_POST['save_ulsc'])) {
                                 ?>
                                 <tr>
                                     <td><?= $sr ?></td>
-                                    <td><?= htmlspecialchars($row['ulsc_id']) ?></td>
-                                    <td><?= htmlspecialchars($row['ulsc_name']) ?></td>
+                                    <td><?= htmlspecialchars($row['id']) ?></td>
+                                    <td><?= htmlspecialchars($row['fullname']) ?></td>
                                     <td><?= htmlspecialchars($row['dept_name']) ?></td>
-                                    <td><?= htmlspecialchars($row['contact']) ?></td>
-                                    <td><?= htmlspecialchars($row['academic_year'] ?? '-') ?></td>
+                                    <td><?= htmlspecialchars($row['contact_no']) ?></td>
+                                    <td><?= htmlspecialchars($row['email']) ?></td>
+                                    <!-- <td><?= ($row['status'] == 1) ? 'Active' : 'Inactive' ?></td> -->
                                     <td>
                                         <button type="button" 
                                                 class="edit-ulsc btn btn-sm btn-primary"
                                                 data-id="<?= $row['id'] ?>"
-                                                data-ulsc-id="<?= htmlspecialchars($row['ulsc_id']) ?>"
-                                                data-ulsc-name="<?= htmlspecialchars($row['ulsc_name']) ?>"
+                                                data-fullname="<?= htmlspecialchars($row['fullname']) ?>"
                                                 data-dept-id="<?= $row['dept_id'] ?>"
-                                                data-contact="<?= htmlspecialchars($row['contact']) ?>">
+                                                data-contact-no="<?= htmlspecialchars($row['contact_no']) ?>">
                                             <i class='bx bx-edit'></i> Edit
                                         </button>
                                     </td>
                                     <td>
-                                        <a href="addulsc.php?delete_id=<?= $row['id'] ?>" 
+                                        <a href="addulsc_f.php?delete_id=<?= $row['id'] ?>" 
                                            class="btn btn-sm btn-danger"
-                                           onclick="return confirm('Are you sure you want to delete this ULSC member?')">
+                                           onclick="return confirm('Are you sure you want to delete this ULSC Faculty member?')">
                                             <i class='bx bx-trash'></i> Delete
                                         </a>
                                     </td>
@@ -454,44 +458,33 @@ if (isset($_POST['save_ulsc'])) {
                     </div>
                 </section>
 
-                <!-- Card UI for upload options -->
                 <div class="card-container">
                     <div class="upload-card" id="singleULSCCard">
                         <div class="icon-title-row">
                             <i class='bx bx-detail'></i>
-                            <span class="card-title">ADD Single ULSC</span>
-                        </div>
-                        <p class="card-subtitle">Add Single ulsc for a specific department</p>
-                    </div>
+                            <span class="card-title">ADD Single ULSC Faculty</span> </div>
+                        <p class="card-subtitle">Add Single ULSC Faculty for a specific department</p> </div>
                     <div class="upload-card" id="multipleULSCCard">
                         <div class="icon-title-row">
                             <i class='bx bx-list-ul'></i>
-                            <span class="card-title">Upload Multiple ULSC</span>
-                        </div>
-                        <p class="card-subtitle">Add Multiple ulsc for a Multiple department</p>
-                    </div>
+                            <span class="card-title">Upload Multiple ULSC Faculty</span> </div>
+                        <p class="card-subtitle">Add Multiple ULSC Faculty for multiple departments</p> </div>
                 </div>
             </div>
 
             <div class="content-card" id="singleULSCContent" style="display: none;">
                 <div class="content-header">
-                    <h2><i class='bx bx-detail'></i> Single ULSC Management</h2>
-                </div>
+                    <h2><i class='bx bx-detail'></i> Single ULSC Faculty Management</h2> </div>
                 <div class="main-content">
                     <section class="ulsc-form">
-                        <h3><?= empty($id) ? 'New ULSC' : 'Edit ULSC' ?></h3>
-                        <form method="post" class="ulsc-input-form">
-                            <input type="hidden" name="id" value="<?= htmlspecialchars($id) ?>">
+                        <h3><?= empty($id) ? 'New ULSC Faculty' : 'Edit ULSC Faculty' ?></h3> <form method="post" class="ulsc-input-form">
+                            <input type="hidden" name="current_id" value="<?= htmlspecialchars($id) ?>"> 
                             
                             <div class="form-group">
-                                <label>ULSC ID:</label>
-                                <input type="text" name="ulsc_id" class="input-field" value="<?= htmlspecialchars($ulsc_id) ?>" required>
-                            </div>
+                                <label>ULSC Faculty ID:</label> <input type="text" name="id" class="input-field" value="<?= htmlspecialchars($id) ?>" required> </div>
 
                             <div class="form-group">
-                                <label>ULSC Name:</label>
-                                <input type="text" name="ulsc_name" class="input-field" value="<?= htmlspecialchars($ulsc_name) ?>" required>
-                            </div>
+                                <label>Full Name:</label> <input type="text" name="fullname" class="input-field" value="<?= htmlspecialchars($fullname) ?>" required> </div>
 
                             <div class="form-group">
                                 <label>Department:</label>
@@ -511,9 +504,7 @@ if (isset($_POST['save_ulsc'])) {
                             </div>
 
                             <div class="form-group">
-                                <label>Contact Number:</label>
-                                <input type="number" name="contact" class="input-field" value="<?= htmlspecialchars($contact) ?>" required>
-                            </div>
+                                <label>Contact Number:</label> <input type="number" name="contact_no" class="input-field" value="<?= htmlspecialchars($contact_no) ?>" required> </div>
 
                             <button type="submit" name="save_ulsc" class="submit-button">
                                 <?= empty($id) ? 'Submit' : 'Update' ?>
@@ -521,68 +512,12 @@ if (isset($_POST['save_ulsc'])) {
                         </form>
                     </section>
                     <br><br>
-                    <!-- <section class="ulsc-table">
-                        <h3>View ULSC Details</h3>
-                        <table class="styled-table">
-                            <thead>
-                                <tr>
-                                    <th>Sr.no</th>
-                                    <th>ULSC ID</th>
-                                    <th>ULSC Name</th>
-                                    <th>Department</th>
-                                    <th>Contact Number</th>
-                                    <th>Edit</th>
-                                    <th>Remove</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php 
-                                $sql = "SELECT ulsc.*, departments.dept_name FROM ulsc JOIN departments ON ulsc.dept_id = departments.dept_id";
-                                $query = $dbh->prepare($sql);
-                                $query->execute();
-                                $results = $query->fetchAll(PDO::FETCH_ASSOC);
-                                $sr = 1;
-                                foreach ($results as $row) { 
-                                ?>
-                                <tr>
-                                    <td><?= $sr ?></td>
-                                    <td><?= htmlspecialchars($row['ulsc_id']) ?></td>
-                                    <td><?= htmlspecialchars($row['ulsc_name']) ?></td>
-                                    <td><?= htmlspecialchars($row['dept_name']) ?></td>
-                                    <td><?= htmlspecialchars($row['contact']) ?></td>
-                                    <td>
-                                        <button type="button" 
-                                                class="edit-ulsc btn btn-sm btn-primary"
-                                                data-id="<?= $row['id'] ?>"
-                                                data-ulsc-id="<?= htmlspecialchars($row['ulsc_id']) ?>"
-                                                data-ulsc-name="<?= htmlspecialchars($row['ulsc_name']) ?>"
-                                                data-dept-id="<?= $row['dept_id'] ?>"
-                                                data-contact="<?= htmlspecialchars($row['contact']) ?>">
-                                            <i class='bx bx-edit'></i> Edit
-                                        </button>
-                                    </td>
-                                    <td>
-                                        <a href="addulsc.php?delete_id=<?= $row['id'] ?>" 
-                                           class="btn btn-sm btn-danger"
-                                           onclick="return confirm('Are you sure you want to delete this ULSC member?')">
-                                            <i class='bx bx-trash'></i> Delete
-                                        </a>
-                                    </td>
-                                </tr>
-                                <?php 
-                                $sr++;
-                                } 
-                                ?>
-                            </tbody>
-                        </table>
-                    </section> -->
                 </div>
             </div>
 
             <div class="content-card" id="multipleULSCContent" style="display: none;">
                 <div class="content-header">
-                    <h2><i class='bx bx-list-ul'></i> Multiple ULSC Management</h2>
-                </div>
+                    <h2><i class='bx bx-list-ul'></i> Multiple ULSC Faculty Management</h2> </div>
                 <div class="main-content">
                     <div class="container mt-3">
                         <div class="row justify-content-center">
@@ -608,19 +543,6 @@ if (isset($_POST['save_ulsc'])) {
                 </div>
             </div>
 
-            <!-- <div class="content-card">
-                <div class="content-header">
-                    <h2><i class='bx bx-info-circle'></i> Sports Events Information</h2>
-                </div>
-                <div class="card-content">
-                    <p>Use the options above to view your department's participation in various sports events. You can:</p>
-                    <ul>
-                        <li>View the list of students registered for a specific sports event</li>
-                        <li>Manage captains and participants for each event</li>
-                        <li>View all sports event registrations at once</li>
-                    </ul>
-                </div>
-            </div> -->
         </div>
     </div>
 
@@ -641,14 +563,22 @@ if (isset($_POST['save_ulsc'])) {
             }
         }
 
-        document.getElementById('singleULSCBtn').addEventListener('click', function(e) {
-            e.preventDefault();
-            toggleContent('singleULSCContent');
+        document.getElementById('singleULSCCard').addEventListener('click', function() {
+            document.getElementById('singleULSCContent').style.display = 'block';
+            document.getElementById('multipleULSCContent').style.display = 'none';
+            // Clear form fields when switching to add new
+            document.querySelector('input[name="id"]').value = '';
+            document.querySelector('input[name="fullname"]').value = '';
+            document.querySelector('select[name="dept_id"]').value = '';
+            document.querySelector('input[name="contact_no"]').value = '';
+            document.querySelector('input[name="current_id"]').value = ''; // Clear hidden ID for new entry
+            document.querySelector('.ulsc-form h3').textContent = 'New ULSC Faculty';
+            document.querySelector('button[name="save_ulsc"]').textContent = 'Submit';
         });
 
-        document.getElementById('multipleULSCBtn').addEventListener('click', function(e) {
-            e.preventDefault();
-            toggleContent('multipleULSCContent');
+        document.getElementById('multipleULSCCard').addEventListener('click', function() {
+            document.getElementById('singleULSCContent').style.display = 'none';
+            document.getElementById('multipleULSCContent').style.display = 'block';
         });
 
         document.querySelectorAll('.edit-ulsc').forEach(button => {
@@ -656,18 +586,17 @@ if (isset($_POST['save_ulsc'])) {
                 e.preventDefault();
                 
                 const id = this.getAttribute('data-id');
-                const ulscId = this.getAttribute('data-ulsc-id');
-                const ulscName = this.getAttribute('data-ulsc-name');
+                const fullname = this.getAttribute('data-fullname'); // Changed to fullname
                 const deptId = this.getAttribute('data-dept-id');
-                const contact = this.getAttribute('data-contact');
+                const contactNo = this.getAttribute('data-contact-no'); // Changed to contact-no
 
-                document.querySelector('input[name="id"]').value = id;
-                document.querySelector('input[name="ulsc_id"]').value = ulscId;
-                document.querySelector('input[name="ulsc_name"]').value = ulscName;
+                document.querySelector('input[name="id"]').value = id; // Set the ID for display/edit
+                document.querySelector('input[name="current_id"]').value = id; // Set the hidden original ID
+                document.querySelector('input[name="fullname"]').value = fullname;
                 document.querySelector('select[name="dept_id"]').value = deptId;
-                document.querySelector('input[name="contact"]').value = contact;
+                document.querySelector('input[name="contact_no"]').value = contactNo;
 
-                document.querySelector('.ulsc-form h3').textContent = 'Edit ULSC';
+                document.querySelector('.ulsc-form h3').textContent = 'Edit ULSC Faculty';
                 document.querySelector('button[name="save_ulsc"]').textContent = 'Update';
 
                 document.getElementById('singleULSCContent').style.display = 'block';
@@ -676,37 +605,11 @@ if (isset($_POST['save_ulsc'])) {
                 document.querySelector('.ulsc-form').scrollIntoView({ behavior: 'smooth' });
             });
         });
-    </script>
-    <script>
-document.addEventListener('DOMContentLoaded', function() {
-    document.getElementById('singleULSCCard').addEventListener('click', function() {
-        document.getElementById('singleULSCContent').style.display = 'block';
-        document.getElementById('multipleULSCContent').style.display = 'none';
-    });
-    document.getElementById('multipleULSCCard').addEventListener('click', function() {
-        document.getElementById('singleULSCContent').style.display = 'none';
-        document.getElementById('multipleULSCContent').style.display = 'block';
-    });
-});
-</script>
-    <script>
-        // Live search for ULSC table
+
+        // Initially hide content cards
         document.addEventListener('DOMContentLoaded', function() {
-            const searchInput = document.getElementById('ulscSearch');
-            const table = document.getElementById('ulscTable');
-            searchInput.addEventListener('input', function() {
-                const filter = searchInput.value.toLowerCase();
-                const rows = table.querySelectorAll('tbody tr');
-                rows.forEach(row => {
-                    let match = false;
-                    row.querySelectorAll('td').forEach(cell => {
-                        if (cell.textContent.toLowerCase().includes(filter)) {
-                            match = true;
-                        }
-                    });
-                    row.style.display = match ? '' : 'none';
-                });
-            });
+            document.getElementById('singleULSCContent').style.display = 'none';
+            document.getElementById('multipleULSCContent').style.display = 'none';
         });
     </script>
 </body>
