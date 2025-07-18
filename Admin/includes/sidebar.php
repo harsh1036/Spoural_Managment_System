@@ -1,6 +1,8 @@
 <?php
-// // Fetch session data
-// session_start();
+// Include the session check logic first and foremost
+require_once '../includes/session_management.php'; // Adjust path if necessary
+
+// Fetch session data
 $admin_username = $_SESSION['login'] ?? 'Guest';
 
 // Determine current page for active link highlighting
@@ -381,8 +383,7 @@ if (isset($_GET['logout'])) {
                 <span class="admin_name"><?php echo htmlspecialchars($admin_username); ?></span>
                 <div class="session-timer">
                     <span>Session: </span>
-                    <span id="countdown"><?php echo $remaining_time; ?></span>s
-                </div>
+                    <span id="countdown"></span> </div>
                 <i class='bx bx-chevron-down'></i>
 
                 <div class="dropdown-menu" id="profileMenu">
@@ -421,27 +422,40 @@ if (isset($_GET['logout'])) {
             }
 
             // Session countdown timer
+            // Get the remaining time from PHP only once on page load
             let timeLeft = <?php echo $remaining_time; ?>;
             const countdownElement = document.getElementById('countdown');
             
             if (countdownElement) {
+                function formatTime(seconds) {
+                    const minutes = Math.floor(seconds / 60);
+                    const remainingSeconds = seconds % 60;
+                    return `${minutes}:${remainingSeconds < 10 ? '0' : ''}${remainingSeconds}`;
+                }
+
+                // Set initial display
+                countdownElement.textContent = formatTime(timeLeft);
+
                 function updateCountdown() {
                     timeLeft--;
-                    const minutes = Math.floor(timeLeft / 60);
-                    const seconds = timeLeft % 60;
-                    countdownElement.textContent = `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+                    countdownElement.textContent = formatTime(timeLeft);
                     
-                    if (timeLeft <= 10) {
+                    if (timeLeft <= 60 && timeLeft > 0) { // Highlight red for last 1 minute
                         countdownElement.style.color = '#ff0000';
                         countdownElement.style.fontWeight = 'bold';
+                    } else if (timeLeft > 60) { // Reset color if it goes back up (e.g., after refresh)
+                        countdownElement.style.color = '#2942a6';
+                        countdownElement.style.fontWeight = '500';
                     }
                     
                     if (timeLeft <= 0) {
+                        // Redirect to the login page when time runs out
+                        clearInterval(countdownInterval); // Stop the interval
                         window.location.href = '../index.php?error=session_expired';
                     }
                 }
                 
-                setInterval(updateCountdown, 1000);
+                const countdownInterval = setInterval(updateCountdown, 1000);
             }
         </script>
         <?php
