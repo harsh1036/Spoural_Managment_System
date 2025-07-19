@@ -36,9 +36,9 @@ $admin_username = $_SESSION['login'];
 
 // Fetch academic years from the database
 $academicYears = [];
-$yearQuery = $dbh->query("SELECT year FROM academic_years ORDER BY year DESC");
+$yearQuery = $dbh->query("SELECT id, year FROM academic_years ORDER BY year DESC");
 if ($yearQuery) {
-    $academicYears = $yearQuery->fetchAll(PDO::FETCH_COLUMN);
+    $academicYears = $yearQuery->fetchAll(PDO::FETCH_ASSOC); // Now each $year has ['id' => ..., 'year' => ...]
 }
 
 // Handle delete operation
@@ -74,6 +74,7 @@ if (isset($_GET['edit_id'])) {
             $ulsc_name = $ulsc['ulsc_name'];
             $dept_id = $ulsc['dept_id'];
             $contact = $ulsc['contact'];
+            $academic_year_id = $ulsc['academic_year_id']; // Fetch academic_year_id
         }
     } catch (PDOException $e) {
         echo "<script>alert('Database error: " . $e->getMessage() . "');</script>";
@@ -173,10 +174,11 @@ if (isset($_POST['save_ulsc'])) {
         $ulsc_name = trim($_POST['ulsc_name']);
         $dept_id = trim($_POST['dept_id']);
         $contact = trim($_POST['contact']);
+        $academic_year_id = isset($_POST['academic_year_id']) ? trim($_POST['academic_year_id']) : '';
         $id = isset($_POST['id']) ? trim($_POST['id']) : '';
 
         // Validate form data
-        if (empty($ulsc_id) || empty($ulsc_name) || empty($dept_id) || empty($contact)) {
+        if (empty($ulsc_id) || empty($ulsc_name) || empty($dept_id) || empty($contact) || empty($academic_year_id)) {
             throw new Exception("All fields are required");
         }
 
@@ -190,7 +192,7 @@ if (isset($_POST['save_ulsc'])) {
 
         if (!empty($id)) {
             // Update existing ULSC
-            $sql = "UPDATE ulsc SET ulsc_id = :ulsc_id, ulsc_name = :ulsc_name, dept_id = :dept_id, contact = :contact WHERE id = :id";
+            $sql = "UPDATE ulsc SET ulsc_id = :ulsc_id, ulsc_name = :ulsc_name, dept_id = :dept_id, contact = :contact, academic_year_id = :academic_year_id WHERE id = :id";
             error_log("Update SQL: " . $sql);
             
             $stmt = $dbh->prepare($sql);
@@ -199,6 +201,7 @@ if (isset($_POST['save_ulsc'])) {
             $stmt->bindParam(':ulsc_name', $ulsc_name, PDO::PARAM_STR);
             $stmt->bindParam(':dept_id', $dept_id, PDO::PARAM_INT);
             $stmt->bindParam(':contact', $contact, PDO::PARAM_STR);
+            $stmt->bindParam(':academic_year_id', $academic_year_id, PDO::PARAM_STR);
         } else {
             // Check if ULSC ID already exists
             $check_sql = "SELECT COUNT(*) FROM ulsc WHERE ulsc_id = :ulsc_id";
@@ -211,7 +214,7 @@ if (isset($_POST['save_ulsc'])) {
             }
 
             // Insert new ULSC
-            $sql = "INSERT INTO ulsc (ulsc_id, ulsc_name, dept_id, contact, email, password) VALUES (:ulsc_id, :ulsc_name, :dept_id, :contact, :email, :password)";
+            $sql = "INSERT INTO ulsc (ulsc_id, ulsc_name, dept_id, contact, academic_year_id, email, password) VALUES (:ulsc_id, :ulsc_name, :dept_id, :contact, :academic_year_id, :email, :password)";
             error_log("Insert SQL: " . $sql);
             
             $stmt = $dbh->prepare($sql);
@@ -219,6 +222,7 @@ if (isset($_POST['save_ulsc'])) {
             $stmt->bindParam(':ulsc_name', $ulsc_name, PDO::PARAM_STR);
             $stmt->bindParam(':dept_id', $dept_id, PDO::PARAM_INT);
             $stmt->bindParam(':contact', $contact, PDO::PARAM_STR);
+            $stmt->bindParam(':academic_year_id', $academic_year_id, PDO::PARAM_STR);
             $stmt->bindParam(':email', $email, PDO::PARAM_STR);
             $stmt->bindParam(':password', $hashed_password, PDO::PARAM_STR);
         }
@@ -245,7 +249,7 @@ if (isset($_POST['save_ulsc'])) {
         }
 
     } catch (Exception $e) {
-        $dbh->rollBack();
+        try { $dbh->rollBack(); } catch (PDOException $ex) { /* ignore if no active transaction */ }
         error_log("Error: " . $e->getMessage());
         echo "<script>alert('Error: " . addslashes($e->getMessage()) . "');</script>";
     }
@@ -384,9 +388,11 @@ if (isset($_POST['save_ulsc'])) {
 
                     <div style="margin-top: 10px;">
                         <label for="academicYear">Academic Year: </label>
-                        <select id="academicYear" name="academicYear">
+                        <select id="academicYear" name="academicYear_display" disabled>
                             <?php foreach ($academicYears as $year): ?>
-                                <option value="<?= htmlspecialchars($year) ?>"><?= htmlspecialchars($year) ?></option>
+                                <option value="<?= htmlspecialchars($year['id']) ?>" <?= (isset($academic_year_id) && $academic_year_id == $year['id']) ? 'selected' : '' ?>>
+                                    <?= htmlspecialchars($year['year']) ?>
+                                </option>
                             <?php endforeach; ?>
                         </select>
                     </div>
@@ -433,7 +439,8 @@ if (isset($_POST['save_ulsc'])) {
                                                 data-ulsc-id="<?= htmlspecialchars($row['ulsc_id']) ?>"
                                                 data-ulsc-name="<?= htmlspecialchars($row['ulsc_name']) ?>"
                                                 data-dept-id="<?= $row['dept_id'] ?>"
-                                                data-contact="<?= htmlspecialchars($row['contact']) ?>">
+                                                data-contact="<?= htmlspecialchars($row['contact']) ?>"
+                                                data-academic-year-id="<?= isset($row['academic_year_id']) && $row['academic_year_id'] ? $row['academic_year_id'] : (isset($academicYears[0]['id']) ? $academicYears[0]['id'] : '') ?>">
                                             <i class='bx bx-edit'></i> Edit
                                         </button>
                                     </td>
@@ -513,6 +520,20 @@ if (isset($_POST['save_ulsc'])) {
                             <div class="form-group">
                                 <label>Contact Number:</label>
                                 <input type="number" name="contact" class="input-field" value="<?= htmlspecialchars($contact) ?>" required>
+                            </div>
+
+                            <div class="form-group">
+                                <label>Academic Year:</label>
+                                <select name="academic_year_id_display" class="input-field" required disabled>
+                                    <?php foreach (
+                                        $academicYears as $year): ?>
+                                        <option value="<?= htmlspecialchars($year['id']) ?>" <?= (isset($academic_year_id) && $academic_year_id == $year['id']) ? 'selected' : '' ?>>
+                                            <?= htmlspecialchars($year['year']) ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                                <!-- Hidden field to actually submit the value -->
+                                <input type="hidden" name="academic_year_id" value="<?= isset($academic_year_id) ? htmlspecialchars($academic_year_id) : (isset($academicYears[0]['id']) ? htmlspecialchars($academicYears[0]['id']) : '') ?>">
                             </div>
 
                             <button type="submit" name="save_ulsc" class="submit-button">
@@ -654,18 +675,43 @@ if (isset($_POST['save_ulsc'])) {
         document.querySelectorAll('.edit-ulsc').forEach(button => {
             button.addEventListener('click', function(e) {
                 e.preventDefault();
-                
                 const id = this.getAttribute('data-id');
                 const ulscId = this.getAttribute('data-ulsc-id');
                 const ulscName = this.getAttribute('data-ulsc-name');
                 const deptId = this.getAttribute('data-dept-id');
                 const contact = this.getAttribute('data-contact');
+                let academicYearId = this.getAttribute('data-academic-year-id');
+
+                // If academicYearId is empty, try to get it from the visible text in the table row
+                if (!academicYearId) {
+                    // Find the closest tr and get the academic year text
+                    const tr = this.closest('tr');
+                    const yearText = tr ? tr.querySelector('td:nth-child(6)')?.textContent.trim() : '';
+                    if (yearText) {
+                        // Find the matching id from academicYears (available in PHP as a JS array)
+                        if (window.academicYearsList) {
+                            for (const y of window.academicYearsList) {
+                                if (y.year === yearText) {
+                                    academicYearId = y.id;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if (!academicYearId && window.academicYearsList && window.academicYearsList.length > 0) {
+                    academicYearId = window.academicYearsList[0].id;
+                }
+
+                console.log('Academic Year ID set:', academicYearId);
 
                 document.querySelector('input[name="id"]').value = id;
                 document.querySelector('input[name="ulsc_id"]').value = ulscId;
                 document.querySelector('input[name="ulsc_name"]').value = ulscName;
                 document.querySelector('select[name="dept_id"]').value = deptId;
                 document.querySelector('input[name="contact"]').value = contact;
+                document.querySelector('input[name="academic_year_id"]').value = academicYearId;
 
                 document.querySelector('.ulsc-form h3').textContent = 'Edit ULSC';
                 document.querySelector('button[name="save_ulsc"]').textContent = 'Update';
@@ -679,13 +725,47 @@ if (isset($_POST['save_ulsc'])) {
     </script>
     <script>
 document.addEventListener('DOMContentLoaded', function() {
+    document.getElementById('singleULSCContent').style.display = 'none';
+    document.getElementById('multipleULSCContent').style.display = 'none';
+
     document.getElementById('singleULSCCard').addEventListener('click', function() {
         document.getElementById('singleULSCContent').style.display = 'block';
         document.getElementById('multipleULSCContent').style.display = 'none';
+        // Clear form fields for new entry
+        document.querySelector('input[name="id"]').value = '';
+        document.querySelector('input[name="ulsc_id"]').value = '';
+        document.querySelector('input[name="ulsc_name"]').value = '';
+        document.querySelector('select[name="dept_id"]').value = '';
+        document.querySelector('input[name="contact"]').value = '';
+        document.querySelector('input[name="academic_year_id"]').value = '';
+        document.querySelector('.ulsc-form h3').textContent = 'New ULSC';
+        document.querySelector('button[name="save_ulsc"]').textContent = 'Submit';
     });
     document.getElementById('multipleULSCCard').addEventListener('click', function() {
         document.getElementById('singleULSCContent').style.display = 'none';
         document.getElementById('multipleULSCContent').style.display = 'block';
+    });
+    document.querySelectorAll('.edit-ulsc').forEach(button => {
+        button.addEventListener('click', function(e) {
+            e.preventDefault();
+            const id = this.getAttribute('data-id');
+            const ulscId = this.getAttribute('data-ulsc-id');
+            const ulscName = this.getAttribute('data-ulsc-name');
+            const deptId = this.getAttribute('data-dept-id');
+            const contact = this.getAttribute('data-contact');
+            const academicYearId = this.getAttribute('data-academic-year-id');
+            document.getElementById('singleULSCContent').style.display = 'block';
+            document.getElementById('multipleULSCContent').style.display = 'none';
+            document.querySelector('input[name="id"]').value = id;
+            document.querySelector('input[name="ulsc_id"]').value = ulscId;
+            document.querySelector('input[name="ulsc_name"]').value = ulscName;
+            document.querySelector('select[name="dept_id"]').value = deptId;
+            document.querySelector('input[name="contact"]').value = contact;
+            document.querySelector('input[name="academic_year_id"]').value = academicYearId;
+            document.querySelector('.ulsc-form h3').textContent = 'Edit ULSC';
+            document.querySelector('button[name="save_ulsc"]').textContent = 'Update';
+            document.querySelector('.ulsc-form').scrollIntoView({ behavior: 'smooth' });
+        });
     });
 });
 </script>
@@ -709,6 +789,9 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         });
     </script>
+    <script>
+window.academicYearsList = <?php echo json_encode($academicYears); ?>;
+</script>
 </body>
 
 </html>

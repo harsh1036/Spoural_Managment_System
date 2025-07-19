@@ -19,7 +19,7 @@ if ($type === 'event' && ($_GET['event_id'] ?? '') === 'all') {
             JOIN student s ON s.student_id = CAST(p.student_id AS UNSIGNED)
             JOIN events e ON p.event_id = e.id
             LEFT JOIN departments d ON p.dept_id = d.dept_id
-            WHERE e.academic_year_id = ?";
+            WHERE p.academic_year_id = ?";
     $stmt = $conn->prepare($sql);
     if (!$stmt) {
         die('Prepare failed: ' . $conn->error);
@@ -32,7 +32,7 @@ if ($type === 'event' && ($_GET['event_id'] ?? '') === 'all') {
             JOIN student s ON s.student_id = CAST(p.student_id AS UNSIGNED)
             JOIN events e ON p.event_id = e.id
             LEFT JOIN departments d ON p.dept_id = d.dept_id
-            WHERE e.academic_year_id = ?";
+            WHERE p.academic_year_id = ?";
     $stmt = $conn->prepare($sql);
     if (!$stmt) {
         die('Prepare failed: ' . $conn->error);
@@ -47,7 +47,7 @@ if ($type === 'event' && ($_GET['event_id'] ?? '') === 'all') {
             JOIN student s ON s.student_id = CAST(p.student_id AS UNSIGNED)
             JOIN events e ON p.event_id = e.id
             LEFT JOIN departments d ON p.dept_id = d.dept_id
-            WHERE p.event_id = ? AND e.academic_year_id = ?";
+            WHERE p.event_id = ? AND p.academic_year_id = ?";
     $stmt = $conn->prepare($sql);
     if (!$stmt) {
         die("Prepare failed: " . $conn->error);
@@ -62,12 +62,25 @@ if ($type === 'event' && ($_GET['event_id'] ?? '') === 'all') {
             JOIN student s ON s.student_id = CAST(p.student_id AS UNSIGNED)
             JOIN events e ON p.event_id = e.id
             LEFT JOIN departments d ON p.dept_id = d.dept_id
-            WHERE p.dept_id = ? AND e.academic_year_id = ?";
+            WHERE p.dept_id = ? AND p.academic_year_id = ?";
     $stmt = $conn->prepare($sql);
     if (!$stmt) {
         die("Prepare failed: " . $conn->error);
     }
     $stmt->bind_param("is", $dept_id, $academic_year);
+} elseif ($type === '' || empty($type)) {
+    // No download_type provided: fetch all participants for the academic year
+    $sql = "SELECT p.*, s.student_name, e.event_name, d.dept_name AS department_name
+            FROM participants p
+            JOIN student s ON s.student_id = CAST(p.student_id AS UNSIGNED)
+            JOIN events e ON p.event_id = e.id
+            LEFT JOIN departments d ON p.dept_id = d.dept_id
+            WHERE p.academic_year_id = ?";
+    $stmt = $conn->prepare($sql);
+    if (!$stmt) {
+        die('Prepare failed: ' . $conn->error);
+    }
+    $stmt->bind_param("s", $academic_year);
 } else {
     die("Invalid download type.");
 }

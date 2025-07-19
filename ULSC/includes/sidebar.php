@@ -1,7 +1,8 @@
+
 <?php
 // Include the session check logic first and foremost.
 // This file will also call session_start() for us.
-require_once '../includes/session_management.php'; // Adjust path if necessary
+require_once __DIR__ . '/session_management.php'; // Always use absolute path
 
 // Fetch session data
 $admin_username = $_SESSION['login'] ?? 'Guest';
@@ -57,7 +58,11 @@ if (isset($_GET['logout'])) {
 
 // Make sure $remaining_time is available to JavaScript,
 // it comes from session_management.php
-$js_remaining_time = $remaining_time ?? $session_timeout_duration;
+// Use $remaining_time directly for consistency with Admin
+if (!isset($remaining_time) || !is_numeric($remaining_time)) {
+    $remaining_time = 0;
+}
+$js_remaining_time = (int)$remaining_time;
 ?>
 
 <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
@@ -192,8 +197,8 @@ $js_remaining_time = $remaining_time ?? $session_timeout_duration;
                     console.error('Required elements for sidebar not found.');
                 }
 
-                // Session countdown timer
-                let timeLeft = <?php echo (int) $js_remaining_time; ?>; // Ensure it's an integer
+                // Session countdown timer (match Admin logic)
+                let timeLeft = <?php echo (int)$js_remaining_time; ?>;
                 const countdownElement = document.getElementById('countdown');
 
                 if (countdownElement) {
@@ -214,8 +219,8 @@ $js_remaining_time = $remaining_time ?? $session_timeout_duration;
                             countdownElement.style.color = '#ff0000';
                             countdownElement.style.fontWeight = 'bold';
                         } else if (timeLeft > 60) { // Reset color if it goes back up (e.g., after refresh)
-                            countdownElement.style.color = '#2942a6'; // Your desired default color
-                            countdownElement.style.fontWeight = '500'; // Your desired default font weight
+                            countdownElement.style.color = '#2942a6';
+                            countdownElement.style.fontWeight = '500';
                         }
 
                         if (timeLeft <= 0) {

@@ -18,7 +18,12 @@ $admin_username = $_SESSION['login'];
 
 // Initialize variables
 $student_id = $student_name = $contact = $dept_id = "";
-
+// Fetch academic years from the database
+$academicYears = [];
+$yearQuery = $dbh->query("SELECT id, year FROM academic_years ORDER BY year DESC");
+if ($yearQuery) {
+    $academicYears = $yearQuery->fetchAll(PDO::FETCH_ASSOC); // Now each $year has ['id' => ..., 'year' => ...]
+}
 // Handle delete operation
 if (isset($_GET['delete_id'])) {
     try {
@@ -71,12 +76,16 @@ if (isset($_GET['download_template'])) {
     exit;
 }
 
+// Fetch academic_year_id from POST
+$academic_year_id = isset($_POST['academic_year_id']) ? trim($_POST['academic_year_id']) : '';
+
 // Handle form submission
 if (isset($_POST['submit'])) {
     $student_id = $_POST['student_id'];
     $name = $_POST['name'];
     $contact = $_POST['contact'];
     $dept_id = $_POST['department'];
+    $academic_year_id = isset($_POST['academic_year_id']) ? trim($_POST['academic_year_id']) : '';
 
     try {
         // Check if student ID already exists
@@ -89,12 +98,12 @@ if (isset($_POST['submit'])) {
         
         if ($exists) {
             // Update existing student
-            $sql = "UPDATE student SET student_name = :name, contact = :contact, dept_id = :dept_id WHERE student_id = :student_id";
+            $sql = "UPDATE student SET student_name = :name, contact = :contact, dept_id = :dept_id, academic_year_id = :academic_year_id WHERE student_id = :student_id";
             $stmt = $dbh->prepare($sql);
             $stmt->bindParam(':student_id', $student_id, PDO::PARAM_STR);
         } else {
             // Insert new student
-            $sql = "INSERT INTO student (student_id, student_name, contact, dept_id) VALUES (:student_id, :name, :contact, :dept_id)";
+            $sql = "INSERT INTO student (student_id, student_name, contact, dept_id, academic_year_id) VALUES (:student_id, :name, :contact, :dept_id, :academic_year_id)";
             $stmt = $dbh->prepare($sql);
             $stmt->bindParam(':student_id', $student_id, PDO::PARAM_STR);
         }
@@ -102,6 +111,7 @@ if (isset($_POST['submit'])) {
         $stmt->bindParam(':name', $name, PDO::PARAM_STR);
         $stmt->bindParam(':contact', $contact, PDO::PARAM_STR);
         $stmt->bindParam(':dept_id', $dept_id, PDO::PARAM_INT);
+        $stmt->bindParam(':academic_year_id', $academic_year_id, PDO::PARAM_INT);
 
         if ($stmt->execute()) {
             echo "<script>alert('Student saved successfully!'); window.location.href='addstudents.php';</script>";
@@ -242,6 +252,19 @@ if (isset($_POST['import'])) {
             <div class="content-card">
                 <div class="content-header">
                     <h2><i class='bx bx-user-circle'></i> Students</h2>
+                    <div style="margin-top: 10px;">
+                        <label for="academicYear">Academic Year: </label>
+                        <select id="academicYear" name="academicYear_display" disabled>
+                            <?php foreach (
+                                $academicYears as $year): ?>
+                                <option value="<?= htmlspecialchars($year['id']) ?>" <?= (isset($academic_year_id) && $academic_year_id == $year['id']) ? 'selected' : '' ?>>
+                                    <?= htmlspecialchars($year['year']) ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                        <!-- Hidden field to actually submit the value -->
+                        <input type="hidden" name="academic_year_id" value="<?= isset($academic_year_id) ? htmlspecialchars($academic_year_id) : (isset($academicYears[0]['id']) ? htmlspecialchars($academicYears[0]['id']) : '') ?>">
+                    </div>
                 </div>
 
                 <div class="card-container">
@@ -290,6 +313,20 @@ if (isset($_POST['import'])) {
                                     <label class="form-label">Contact</label>
                                     <input type="text" name="contact" class="form-control" value="<?= isset($contact) ? htmlspecialchars($contact) : '' ?>">
                                 </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label>Academic Year:</label>
+                                <select name="academic_year_id_display" class="input-field" required disabled>
+                                    <?php foreach (
+                                        $academicYears as $year): ?>
+                                        <option value="<?= htmlspecialchars($year['id']) ?>" <?= (isset($academic_year_id) && $academic_year_id == $year['id']) ? 'selected' : '' ?>>
+                                            <?= htmlspecialchars($year['year']) ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                                <!-- Hidden field to actually submit the value -->
+                                <input type="hidden" name="academic_year_id" value="<?= isset($academic_year_id) ? htmlspecialchars($academic_year_id) : (isset($academicYears[0]['id']) ? htmlspecialchars($academicYears[0]['id']) : '') ?>">
                             </div>
 
                             <div class="form-row">
@@ -386,33 +423,59 @@ if (isset($_POST['import'])) {
         // Handle edit button clicks
         document.addEventListener('DOMContentLoaded', function() {
             document.querySelectorAll('.edit-student').forEach(button => {
-                button.addEventListener('click', function() {
-                    // Get the data from the clicked button
+                button.addEventListener('click', function(e) {
+                    e.preventDefault();
                     const id = this.getAttribute('data-id');
                     const name = this.getAttribute('data-name');
                     const contact = this.getAttribute('data-contact');
-                    const dept = this.getAttribute('data-dept');
-
-                    // Populate the form fields
-                    document.querySelector('input[name="student_id"]').value = id;
-                    document.querySelector('input[name="name"]').value = name;
-                    document.querySelector('input[name="contact"]').value = contact || '';
-                    document.querySelector('select[name="department"]').value = dept;
-
-                    // Update form title and button
-                    document.querySelector('.form-container h3').textContent = 'Edit Student';
-                    document.querySelector('button[name="submit"]').textContent = 'Update Student';
-
-                    // Show the form section
+                    const deptId = this.getAttribute('data-dept-id');
+                    let academicYearId = this.getAttribute('data-academic-year-id');
+                    // If academicYearId is empty, try to get it from the visible text in the table row
+                    if (!academicYearId) {
+                        const tr = this.closest('tr');
+                        const yearText = tr ? tr.querySelector('td:nth-child(4)')?.textContent.trim() : '';
+                        if (yearText && window.academicYearsList) {
+                            for (const y of window.academicYearsList) {
+                                if (y.year === yearText) {
+                                    academicYearId = y.id;
+                                    break;
+                                }
+                            }
+                        }
+                    }
                     document.getElementById('singleStudentContent').style.display = 'block';
                     document.getElementById('multipleStudentContent').style.display = 'none';
-
-                    // Scroll to form
-                    document.querySelector('.form-container').scrollIntoView({ behavior: 'smooth' });
+                    document.querySelector('input[name="student_id"]').value = id;
+                    document.querySelector('input[name="name"]').value = name;
+                    document.querySelector('input[name="contact"]').value = contact;
+                    document.querySelector('select[name="department"]').value = deptId;
+                    document.querySelector('input[name="academic_year_id"]').value = academicYearId;
+                    document.querySelector('.form-container h3').textContent = 'Edit Student';
+                    document.querySelector('button[name="submit"]').textContent = 'Update Student';
+                    document.getElementById('singleStudentContent').scrollIntoView({ behavior: 'smooth' });
                 });
             });
         });
     </script>
+    <script>
+window.academicYearsList = <?php echo json_encode($academicYears); ?>;
+// Academic year textbox to hidden id sync
+const yearTextBox = document.getElementById('academicYearText');
+const yearIdHidden = document.getElementById('academicYearIdHidden');
+yearTextBox && yearTextBox.addEventListener('input', function() {
+    const val = this.value.trim();
+    let found = '';
+    if (window.academicYearsList) {
+        for (const y of window.academicYearsList) {
+            if (y.year === val) {
+                found = y.id;
+                break;
+            }
+        }
+    }
+    yearIdHidden.value = found;
+});
+</script>
 </body>
 
 </html>

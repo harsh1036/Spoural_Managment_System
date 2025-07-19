@@ -36,12 +36,17 @@ $admin_username = $_SESSION['login'];
 
 // Academic years are not in ulsc_f table, so this block might be irrelevant for ULSC_F.
 // Keeping it for now if it's used elsewhere in the page.
+// $academicYears = [];
+// $yearQuery = $dbh->query("SELECT year, id FROM academic_years ORDER BY year DESC");
+// if ($yearQuery) {
+//     $academicYears = $yearQuery->fetchAll(PDO::FETCH_ASSOC);
+// }
+// Fetch academic years from the database
 $academicYears = [];
-$yearQuery = $dbh->query("SELECT year FROM academic_years ORDER BY year DESC");
+$yearQuery = $dbh->query("SELECT id, year FROM academic_years ORDER BY year DESC");
 if ($yearQuery) {
-    $academicYears = $yearQuery->fetchAll(PDO::FETCH_COLUMN);
+    $academicYears = $yearQuery->fetchAll(PDO::FETCH_ASSOC); // Now each $year has ['id' => ..., 'year' => ...]
 }
-
 // Handle delete operation
 if (isset($_GET['delete_id'])) {
     try {
@@ -74,6 +79,7 @@ if (isset($_GET['edit_id'])) {
             $fullname = $ulsc_f_data['fullname']; // Changed ulsc_name to fullname
             $dept_id = $ulsc_f_data['dept_id'];
             $contact_no = $ulsc_f_data['contact_no']; // Changed contact to contact_no
+            $academic_year_id = $ulsc_f_data['academic_year_id']; // Get academic year ID
         }
     } catch (PDOException $e) {
         echo "<script>alert('Database error: " . $e->getMessage() . "');</script>";
@@ -84,12 +90,12 @@ if (isset($_GET['edit_id'])) {
 if (isset($_GET['download_template'])) {
     // Fetch column names dynamically from the ulsc_f table
     $columns = [];
-    $stmt = $dbh->query("SHOW COLUMNS FROM ulsc_f"); // Changed table to ulsc_f
+    $stmt = $dbh->query("SHOW COLUMNS FROM ulsc_f");
     while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-        $columns[] = $row['Field'];
+        if (!in_array($row['Field'], ['password', 'status'])) {
+            $columns[] = $row['Field'];
+        }
     }
-    // Remove 'password' and 'status' from template as they are auto-generated/defaulted
-    $columns = array_diff($columns, ['password', 'status', 'email']); 
     $data = [ $columns ]; // Column headers
     $xlsx = SimpleXLSXGen::fromArray($data);
     $xlsx->downloadAs('ULSC_Faculty_Template.xlsx');
@@ -103,7 +109,7 @@ if (isset($_POST['import'])) {
         
         if ($xlsx = SimpleXLSX::parse($file)) {
             $rows = $xlsx->rows();
-            $expectedColumns = ['id', 'fullname', 'dept_id', 'contact_no']; // Updated expected columns
+            $expectedColumns = ['id', 'fullname', 'dept_id', 'contact_no', 'email']; // Updated expected columns
             
             // Validate column names
             if ($rows[0] !== $expectedColumns) {
@@ -118,9 +124,9 @@ if (isset($_POST['import'])) {
                         $fullname = $row[1]; 
                         $dept_id = $row[2]; 
                         $contact_no = $row[3];
+                        $email = $row[4]; // Get email from Excel
 
-                        // Generate email and password
-                        $email = $id_excel . "@charusat.edu.in";
+                        // Generate password
                         $plain_password = "1234";
                         $hashed_password = password_hash($plain_password, PASSWORD_BCRYPT);
 
@@ -134,13 +140,14 @@ if (isset($_POST['import'])) {
                             throw new Exception("ULSC Faculty ID $id_excel already exists"); // Updated message
                         }
 
-                        $sql = "INSERT INTO ulsc_f (id, fullname, dept_id, contact_no, email, password, status) VALUES (:id, :fullname, :dept_id, :contact_no, :email, :password, 1)"; // Changed table to ulsc_f, columns to fullname, contact_no, added status
+                        $sql = "INSERT INTO ulsc_f (id, fullname, dept_id, contact_no, email, academic_year_id, password, status) VALUES (:id, :fullname, :dept_id, :contact_no, :email, :academic_year_id, :password, 1)"; // Changed table to ulsc_f, columns to fullname, contact_no, added status
                         $stmt = $dbh->prepare($sql);
                         $stmt->bindParam(':id', $id_excel, PDO::PARAM_INT);
                         $stmt->bindParam(':fullname', $fullname, PDO::PARAM_STR);
                         $stmt->bindParam(':dept_id', $dept_id, PDO::PARAM_INT);
                         $stmt->bindParam(':contact_no', $contact_no, PDO::PARAM_STR);
                         $stmt->bindParam(':email', $email, PDO::PARAM_STR);
+                        $stmt->bindParam(':academic_year_id', $academic_year_id, PDO::PARAM_INT); // Bind academic_year_id
                         $stmt->bindParam(':password', $hashed_password, PDO::PARAM_STR);
                         $stmt->execute();
                     }
@@ -175,15 +182,16 @@ if (isset($_POST['save_ulsc'])) {
         $fullname = trim($_POST['fullname']); // Changed to fullname
         $dept_id = trim($_POST['dept_id']);
         $contact_no = trim($_POST['contact_no']); // Changed to contact_no
+        $email = trim($_POST['email']); // Get email from POST
         $current_id = isset($_POST['current_id']) ? trim($_POST['current_id']) : ''; // Use a hidden field for original ID during edit
+        $academic_year_id = isset($_POST['academic_year_id']) ? trim($_POST['academic_year_id']) : ''; // Get academic year ID from POST
 
         // Validate form data
         if (empty($id_form) || empty($fullname) || empty($dept_id) || empty($contact_no)) {
             throw new Exception("All fields are required");
         }
 
-        // Generate email and password (only for new entries, or if you intend to re-set on edit)
-        // $email = $id_form . "@charusat.edu.in";
+        // Generate password (only for new entries, or if you intend to re-set on edit)
         $plain_password = "1234";
         $hashed_password = password_hash($plain_password, PASSWORD_BCRYPT);
 
@@ -192,7 +200,7 @@ if (isset($_POST['save_ulsc'])) {
 
         if (!empty($current_id)) { // If current_id is present, it's an update
             // Update existing ULSC Faculty
-            $sql = "UPDATE ulsc_f SET id = :new_id, fullname = :fullname, dept_id = :dept_id, contact_no = :contact_no WHERE id = :current_id"; // Changed table to ulsc_f, columns, and added :current_id for WHERE clause
+            $sql = "UPDATE ulsc_f SET id = :new_id, fullname = :fullname, dept_id = :dept_id, contact_no = :contact_no, email = :email, academic_year_id = :academic_year_id WHERE id = :current_id";
             error_log("Update SQL: " . $sql);
             
             $stmt = $dbh->prepare($sql);
@@ -200,6 +208,8 @@ if (isset($_POST['save_ulsc'])) {
             $stmt->bindParam(':fullname', $fullname, PDO::PARAM_STR);
             $stmt->bindParam(':dept_id', $dept_id, PDO::PARAM_INT);
             $stmt->bindParam(':contact_no', $contact_no, PDO::PARAM_STR);
+            $stmt->bindParam(':email', $email, PDO::PARAM_STR);
+            $stmt->bindParam(':academic_year_id', $academic_year_id, PDO::PARAM_INT); // Bind academic_year_id
             $stmt->bindParam(':current_id', $current_id, PDO::PARAM_INT); // Original ID
         } else {
             // Check if ULSC Faculty ID already exists for new entry
@@ -213,7 +223,7 @@ if (isset($_POST['save_ulsc'])) {
             }
 
             // Insert new ULSC Faculty
-            $sql = "INSERT INTO ulsc_f (id, fullname, dept_id, contact_no, email, password, status) VALUES (:id, :fullname, :dept_id, :contact_no, :email, :password, 1)"; // Changed table to ulsc_f, columns, added status
+            $sql = "INSERT INTO ulsc_f (id, fullname, dept_id, contact_no, email, academic_year_id, password, status) VALUES (:id, :fullname, :dept_id, :contact_no, :email, :academic_year_id, :password, 1)"; // Changed table to ulsc_f, columns, added status
             error_log("Insert SQL: " . $sql);
             
             $stmt = $dbh->prepare($sql);
@@ -222,6 +232,7 @@ if (isset($_POST['save_ulsc'])) {
             $stmt->bindParam(':dept_id', $dept_id, PDO::PARAM_INT);
             $stmt->bindParam(':contact_no', $contact_no, PDO::PARAM_STR);
             $stmt->bindParam(':email', $email, PDO::PARAM_STR);
+            $stmt->bindParam(':academic_year_id', $academic_year_id, PDO::PARAM_INT); // Bind academic_year_id
             $stmt->bindParam(':password', $hashed_password, PDO::PARAM_STR);
         }
 
@@ -386,9 +397,11 @@ if (isset($_POST['save_ulsc'])) {
                 <div class="content-header">
                     <h2><i class='bx bx-group'></i> ULSC Faculty</h2> <div style="margin-top: 10px;">
                         <label for="academicYear">Academic Year: </label>
-                        <select id="academicYear" name="academicYear">
+                        <select id="academicYear" name="academicYear_display" disabled>
                             <?php foreach ($academicYears as $year): ?>
-                                <option value="<?= htmlspecialchars($year) ?>"><?= htmlspecialchars($year) ?></option>
+                                <option value="<?= htmlspecialchars($year['id']) ?>" <?= (isset($academic_year_id) && $academic_year_id == $year['id']) ? 'selected' : '' ?>>
+                                    <?= htmlspecialchars($year['year']) ?>
+                                </option>
                             <?php endforeach; ?>
                         </select>
                     </div>
@@ -405,7 +418,7 @@ if (isset($_POST['save_ulsc'])) {
                                     <th>Full Name</th>
                                     <th>Department</th>
                                     <th>Contact Number</th>
-                                    <!-- <th>Email</th> -->
+                                    <th>Email</th>
                                     <!-- <th>Status</th> -->
                                     <th>Edit</th>
                                     <th>Remove</th>
@@ -414,7 +427,7 @@ if (isset($_POST['save_ulsc'])) {
                             <tbody>
                                 <?php 
                                 // SQL query adapted for ulsc_f table and its columns
-                                $sql = "SELECT ulsc_f.id, ulsc_f.fullname, departments.dept_name, ulsc_f.contact_no, ulsc_f.email, ulsc_f.status 
+                                $sql = "SELECT ulsc_f.id, ulsc_f.fullname, ulsc_f.dept_id, departments.dept_name, ulsc_f.contact_no, ulsc_f.email, ulsc_f.status 
                                         FROM ulsc_f 
                                         JOIN departments ON ulsc_f.dept_id = departments.dept_id";
                                 $query = $dbh->prepare($sql);
@@ -437,7 +450,8 @@ if (isset($_POST['save_ulsc'])) {
                                                 data-id="<?= $row['id'] ?>"
                                                 data-fullname="<?= htmlspecialchars($row['fullname']) ?>"
                                                 data-dept-id="<?= $row['dept_id'] ?>"
-                                                data-contact-no="<?= htmlspecialchars($row['contact_no']) ?>">
+                                                data-contact-no="<?= htmlspecialchars($row['contact_no']) ?>"
+                                                data-email="<?= htmlspecialchars($row['email']) ?>">
                                             <i class='bx bx-edit'></i> Edit
                                         </button>
                                     </td>
@@ -476,6 +490,7 @@ if (isset($_POST['save_ulsc'])) {
                 <div class="content-header">
                     <h2><i class='bx bx-detail'></i> Single ULSC Faculty Management</h2> </div>
                 <div class="main-content">
+                    
                     <section class="ulsc-form">
                         <h3><?= empty($id) ? 'New ULSC Faculty' : 'Edit ULSC Faculty' ?></h3> <form method="post" class="ulsc-input-form">
                             <input type="hidden" name="current_id" value="<?= htmlspecialchars($id) ?>"> 
@@ -491,7 +506,7 @@ if (isset($_POST['save_ulsc'])) {
                                 <select name="dept_id" class="input-field" required>
                                     <option value="">Select Department</option>
                                     <?php 
-                                    $dept_sql = "SELECT dept_id, dept_name FROM departments";
+                                    $dept_sql = "SELECT dept_id, dept_name FROM departments ";
                                     $dept_stmt = $dbh->prepare($dept_sql);
                                     $dept_stmt->execute();
                                     while ($dept = $dept_stmt->fetch(PDO::FETCH_ASSOC)): 
@@ -506,6 +521,23 @@ if (isset($_POST['save_ulsc'])) {
                             <div class="form-group">
                                 <label>Contact Number:</label> <input type="number" name="contact_no" class="input-field" value="<?= htmlspecialchars($contact_no) ?>" required> </div>
 
+                            <div class="form-group">
+                                <label>Email:</label>
+                                <input type="email" name="email" class="input-field" value="<?= htmlspecialchars($email ?? '') ?>" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Academic Year:</label>
+                                <select name="academic_year_id_display" class="input-field" required disabled>
+                                    <?php foreach (
+                                        $academicYears as $year): ?>
+                                        <option value="<?= htmlspecialchars($year['id']) ?>" <?= (isset($academic_year_id) && $academic_year_id == $year['id']) ? 'selected' : '' ?>>
+                                            <?= htmlspecialchars($year['year']) ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                                <!-- Hidden field to actually submit the value -->
+                                <input type="hidden" name="academic_year_id" value="<?= isset($academic_year_id) ? htmlspecialchars($academic_year_id) : (isset($academicYears[0]['id']) ? htmlspecialchars($academicYears[0]['id']) : '') ?>">
+                            </div>       
                             <button type="submit" name="save_ulsc" class="submit-button">
                                 <?= empty($id) ? 'Submit' : 'Update' ?>
                             </button>
@@ -571,6 +603,7 @@ if (isset($_POST['save_ulsc'])) {
             document.querySelector('input[name="fullname"]').value = '';
             document.querySelector('select[name="dept_id"]').value = '';
             document.querySelector('input[name="contact_no"]').value = '';
+            document.querySelector('input[name="email"]').value = ''; // Clear email field for new entry
             document.querySelector('input[name="current_id"]').value = ''; // Clear hidden ID for new entry
             document.querySelector('.ulsc-form h3').textContent = 'New ULSC Faculty';
             document.querySelector('button[name="save_ulsc"]').textContent = 'Submit';
@@ -586,15 +619,17 @@ if (isset($_POST['save_ulsc'])) {
                 e.preventDefault();
                 
                 const id = this.getAttribute('data-id');
-                const fullname = this.getAttribute('data-fullname'); // Changed to fullname
+                const fullname = this.getAttribute('data-fullname');
                 const deptId = this.getAttribute('data-dept-id');
-                const contactNo = this.getAttribute('data-contact-no'); // Changed to contact-no
+                const contactNo = this.getAttribute('data-contact-no');
+                const email = this.getAttribute('data-email');
 
-                document.querySelector('input[name="id"]').value = id; // Set the ID for display/edit
-                document.querySelector('input[name="current_id"]').value = id; // Set the hidden original ID
+                document.querySelector('input[name="id"]').value = id;
+                document.querySelector('input[name="current_id"]').value = id;
                 document.querySelector('input[name="fullname"]').value = fullname;
                 document.querySelector('select[name="dept_id"]').value = deptId;
                 document.querySelector('input[name="contact_no"]').value = contactNo;
+                document.querySelector('input[name="email"]').value = email;
 
                 document.querySelector('.ulsc-form h3').textContent = 'Edit ULSC Faculty';
                 document.querySelector('button[name="save_ulsc"]').textContent = 'Update';
@@ -612,6 +647,25 @@ if (isset($_POST['save_ulsc'])) {
             document.getElementById('multipleULSCContent').style.display = 'none';
         });
     </script>
+    <script>
+window.academicYearsList = <?php echo json_encode($academicYears); ?>;
+// Academic year textbox to hidden id sync
+const yearTextBox = document.getElementById('academicYearText');
+const yearIdHidden = document.getElementById('academicYearIdHidden');
+yearTextBox && yearTextBox.addEventListener('input', function() {
+    const val = this.value.trim();
+    let found = '';
+    if (window.academicYearsList) {
+        for (const y of window.academicYearsList) {
+            if (y.year === val) {
+                found = y.id;
+                break;
+            }
+        }
+    }
+    yearIdHidden.value = found;
+});
+</script>
 </body>
 
 </html>

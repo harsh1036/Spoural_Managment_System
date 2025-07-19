@@ -1,3 +1,4 @@
+
 <?php
 // Start the session at the very beginning
 session_start();

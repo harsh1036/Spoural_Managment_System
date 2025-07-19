@@ -1,5 +1,4 @@
 <?php
-include('../includes/session_management.php');
 include('../includes/config.php');
 
 if (!isset($_SESSION['ulsc_id'])) {
