@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/SimpleXLSXGen.php';
 require_once __DIR__ . '/SimpleXLSX.php';
+
 use Shuchkin\SimpleXLSXGen;
 use Shuchkin\SimpleXLSX;
 
@@ -26,9 +27,9 @@ $message = "";
 
 // Fetch academic years from the database
 $academicYears = [];
-$yearQuery = $dbh->query("SELECT year FROM academic_years ORDER BY year DESC");
+$yearQuery = $dbh->query("SELECT id, year FROM academic_years ORDER BY year DESC");
 if ($yearQuery) {
-    $academicYears = $yearQuery->fetchAll(PDO::FETCH_COLUMN);
+    $academicYears = $yearQuery->fetchAll(PDO::FETCH_ASSOC); // Now each $year has ['id' => ..., 'year' => ...]
 }
 
 // Handle download template
@@ -39,7 +40,7 @@ if (isset($_GET['download_template'])) {
     while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
         $columns[] = $row['Field'];
     }
-    $data = [ $columns ]; // Column headers
+    $data = [$columns]; // Column headers
     $xlsx = SimpleXLSXGen::fromArray($data);
     $xlsx->downloadAs('Events_Template.xlsx');
     exit;
@@ -53,7 +54,7 @@ if (isset($_GET['delete_id'])) {
         $sql = "UPDATE events SET status = 0 WHERE id = :id";
         $stmt = $dbh->prepare($sql);
         $stmt->bindParam(':id', $delete_id, PDO::PARAM_INT);
-        
+
         if ($stmt->execute()) {
             echo "<script>alert('Event Deleted successfully!'); window.location.href='addevent.php';</script>";
         } else {
@@ -72,13 +73,14 @@ if (isset($_GET['edit_id'])) {
         $stmt = $dbh->prepare($sql);
         $stmt->bindParam(':id', $edit_id, PDO::PARAM_INT);
         $stmt->execute();
-        
+
         if ($event = $stmt->fetch(PDO::FETCH_ASSOC)) {
             $event_id = $event['id'];
             $event_name = $event['event_name'];
             $event_type = $event['event_type'];
             $min_participants = $event['min_participants'];
             $max_participants = $event['max_participants'];
+            $academic_year_id = $event['academic_year_id']; // Fetch the ID
         }
     } catch (PDOException $e) {
         echo "<script>alert('Database error: " . $e->getMessage() . "');</script>";
@@ -92,16 +94,17 @@ if (isset($_POST['save_event'])) {
     $min_participants = $_POST['min_participants'];
     $max_participants = $_POST['max_participants'];
     $event_id = $_POST['event_id'];
+    $academic_year_id = $_POST['academic_year_id'];
 
     try {
         if (!empty($event_id)) {
             // Update existing event
-            $sql = "UPDATE events SET event_name = :name, event_type = :type, min_participants = :min, max_participants = :max WHERE id = :id";
+            $sql = "UPDATE events SET event_name = :name, event_type = :type, min_participants = :min, max_participants = :max, academic_year_id = :academic_year_id WHERE id = :id";
             $stmt = $dbh->prepare($sql);
             $stmt->bindParam(':id', $event_id, PDO::PARAM_INT);
         } else {
             // Insert new event (assuming default status is 1 for active)
-            $sql = "INSERT INTO events (event_name, event_type, min_participants, max_participants, status) VALUES (:name, :type, :min, :max, 1)";
+            $sql = "INSERT INTO events (event_name, event_type, min_participants, max_participants, academic_year_id, status) VALUES (:name, :type, :min, :max, :academic_year_id, 1)";
             $stmt = $dbh->prepare($sql);
         }
 
@@ -109,6 +112,7 @@ if (isset($_POST['save_event'])) {
         $stmt->bindParam(':type', $event_type, PDO::PARAM_STR);
         $stmt->bindParam(':min', $min_participants, PDO::PARAM_INT);
         $stmt->bindParam(':max', $max_participants, PDO::PARAM_INT);
+        $stmt->bindParam(':academic_year_id', $academic_year_id, PDO::PARAM_INT); // Changed to PARAM_INT
 
         if ($stmt->execute()) {
             echo "<script>alert('Event saved successfully!'); window.location.href='addevent.php';</script>";
@@ -124,10 +128,10 @@ if (isset($_POST['save_event'])) {
 if (isset($_POST['import'])) {
     if ($_FILES['excel_file']['error'] == UPLOAD_ERR_OK) {
         $file = $_FILES['excel_file']['tmp_name'];
-        
+
         if ($xlsx = SimpleXLSX::parse($file)) {
             $rows = $xlsx->rows();
-            
+
             // Validate column names
             if ($rows[0] !== $expectedColumns) {
                 echo "<script>alert('Error: Column names do not match the expected format!'); window.location.href='addevent.php';</script>";
@@ -135,18 +139,20 @@ if (isset($_POST['import'])) {
             } else {
                 try {
                     foreach (array_slice($rows, 1) as $row) {
-                        $event_name = $row[0]; 
-                        $event_type = $row[1]; 
-                        $min_participants = $row[2]; 
+                        $event_name = $row[0];
+                        $event_type = $row[1];
+                        $min_participants = $row[2];
                         $max_participants = $row[3];
+                        $academic_year_id = $row[4]; // Assuming academic year is in the 5th column
 
                         // Insert new event with status = 1
-                        $sql = "INSERT INTO events (event_name, event_type, min_participants, max_participants, status) VALUES (:name, :type, :min, :max, 1)";
+                        $sql = "INSERT INTO events (event_name, event_type, min_participants, max_participants, academic_year_id, status) VALUES (:name, :type, :min, :max, :academic_year_id, 1)";
                         $stmt = $dbh->prepare($sql);
                         $stmt->bindParam(':name', $event_name, PDO::PARAM_STR);
                         $stmt->bindParam(':type', $event_type, PDO::PARAM_STR);
                         $stmt->bindParam(':min', $min_participants, PDO::PARAM_INT);
                         $stmt->bindParam(':max', $max_participants, PDO::PARAM_INT);
+                        $stmt->bindParam(':academic_year_id', $academic_year_id, PDO::PARAM_INT); // Changed to PARAM_INT
                         $stmt->execute();
                     }
                     echo "<script>alert('Data imported successfully!'); window.location.href='addevent.php';</script>";
@@ -178,50 +184,56 @@ if (isset($_POST['import'])) {
     <link rel="stylesheet" href="../assets/css/style.css">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
-    .card-container {
-      display: flex;
-      gap: 2rem;
-      justify-content: center;
-      margin: 2rem 0;
-    }
-    .upload-card {
-      background: #f5f8fa;
-      border-radius: 16px;
-      box-shadow: 0 4px 24px rgba(44, 62, 80, 0.08);
-      padding: 2rem 2.5rem;
-      min-width: 320px;
-      text-align: center;
-      transition: box-shadow 0.2s, background 0.2s;
-      cursor: pointer;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-    }
-    .upload-card:hover {
-      background: #fff;
-      box-shadow: 0 8px 32px rgba(44, 62, 80, 0.12);
-    }
-    .icon-title-row {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 1rem;
-      margin-bottom: 0.5rem;
-    }
-    .icon-title-row i {
-      font-size: 2.2rem;
-      color: #2236d1;
-    }
-    .card-title {
-      font-size: 1.25rem;
-      font-weight: 600;
-      color: #222;
-    }
-    .card-subtitle {
-      color: #888;
-      font-size: 1rem;
-      margin: 0;
-    }
+        .card-container {
+            display: flex;
+            gap: 2rem;
+            justify-content: center;
+            margin: 2rem 0;
+        }
+
+        .upload-card {
+            background: #f5f8fa;
+            border-radius: 16px;
+            box-shadow: 0 4px 24px rgba(44, 62, 80, 0.08);
+            padding: 2rem 2.5rem;
+            min-width: 320px;
+            text-align: center;
+            transition: box-shadow 0.2s, background 0.2s;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .upload-card:hover {
+            background: #fff;
+            box-shadow: 0 8px 32px rgba(44, 62, 80, 0.12);
+        }
+
+        .icon-title-row {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 1rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .icon-title-row i {
+            font-size: 2.2rem;
+            color: #2236d1;
+        }
+
+        .card-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: #222;
+        }
+
+        .card-subtitle {
+            color: #888;
+            font-size: 1rem;
+            margin: 0;
+        }
     </style>
 </head>
 
@@ -235,9 +247,11 @@ if (isset($_POST['import'])) {
                     <h2><i class='bx bx-calendar-event'></i> Events</h2>
                     <div style="margin-top: 10px;">
                         <label for="academicYear">Academic Year: </label>
-                        <select id="academicYear" name="academicYear">
+                        <select id="academicYear" name="academicYear_display" disabled>
                             <?php foreach ($academicYears as $year): ?>
-                                <option value="<?= htmlspecialchars($year) ?>"><?= htmlspecialchars($year) ?></option>
+                                <option value="<?= htmlspecialchars($year['id']) ?>" <?= (isset($academic_year_id) && $academic_year_id == $year['id']) ? 'selected' : '' ?>>
+                                    <?= htmlspecialchars($year['year']) ?>
+                                </option>
                             <?php endforeach; ?>
                         </select>
                     </div>
@@ -257,43 +271,43 @@ if (isset($_POST['import'])) {
                                     <th>Min Participants</th>
                                     <th>Max Participants</th>
                                     <th>Academic Year</th>
-                                    <th>Status</th> <!-- Added Status Column -->
+
                                     <th>Edit</th>
                                     <th>Remove</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                <?php 
+                                <?php
                                 // Fetch events for display (including status)
-                                $query = $dbh->prepare("SELECT e.*, ay.year AS academic_year FROM events e LEFT JOIN academic_years ay ON e.academic_year_id = ay.id ORDER BY e.id DESC");
+                                $query = $dbh->prepare("SELECT e.*, ay.year AS academic_year FROM events e LEFT JOIN academic_years ay ON e.academic_year_id = ay.id WHERE e.status = 1 ORDER BY e.id DESC");
                                 $query->execute();
                                 $events = $query->fetchAll(PDO::FETCH_ASSOC);
-                                foreach ($events as $event) { 
+                                foreach ($events as $event) {
                                 ?>
-                                <tr>
-                                    <td><?= $event['id'] ?></td>
-                                    <td><?= htmlspecialchars($event['event_name']) ?></td>
-                                    <td><?= htmlspecialchars($event['event_type']) ?></td>
-                                    <td><?= htmlspecialchars($event['min_participants']) ?></td>
-                                    <td><?= htmlspecialchars($event['max_participants']) ?></td>
-                                    <td><?= htmlspecialchars($event['academic_year'] ?? '-') ?></td>
-                                    <td><?= ($event['status'] == 1) ? 'Active' : 'Inactive'; ?></td> <!-- Display Status -->
-                                    <td>
-                                        <a href="#" class="edit-event btn btn-sm btn-primary" 
-                                           data-id="<?= $event['id'] ?>"
-                                           data-name="<?= htmlspecialchars($event['event_name']) ?>"
-                                           data-type="<?= htmlspecialchars($event['event_type']) ?>"
-                                           data-min="<?= htmlspecialchars($event['min_participants']) ?>"
-                                           data-max="<?= htmlspecialchars($event['max_participants']) ?>">
-                                            <i class='bx bx-edit'></i> Edit
-                                        </a>
-                                    </td>
-                                    <td>
-                                        <a href="addevent.php?delete_id=<?= $event['id'] ?>" class="btn btn-sm btn-danger" onclick="return confirm('Are you sure you want to delete this event?');"> <!-- Updated confirmation message -->
-                                            <i class='bx bx-trash'></i> Delete <!-- Changed text to Delete -->
-                                        </a>
-                                    </td>
-                                </tr>
+                                    <tr>
+                                        <td><?= $event['id'] ?></td>
+                                        <td><?= htmlspecialchars($event['event_name']) ?></td>
+                                        <td><?= htmlspecialchars($event['event_type']) ?></td>
+                                        <td><?= htmlspecialchars($event['min_participants']) ?></td>
+                                        <td><?= htmlspecialchars($event['max_participants']) ?></td>
+                                        <td><?= htmlspecialchars($event['academic_year'] ?? '-') ?></td>
+
+                                        <td>
+                                            <a href="#" class="edit-event btn btn-sm btn-primary"
+                                                data-id="<?= $event['id'] ?>"
+                                                data-name="<?= htmlspecialchars($event['event_name']) ?>"
+                                                data-type="<?= htmlspecialchars($event['event_type']) ?>"
+                                                data-min="<?= htmlspecialchars($event['min_participants']) ?>"
+                                                data-max="<?= htmlspecialchars($event['max_participants']) ?>">
+                                                <i class='bx bx-edit'></i> Edit
+                                            </a>
+                                        </td>
+                                        <td>
+                                            <a href="addevent.php?delete_id=<?= $event['id'] ?>" class="btn btn-sm btn-danger" onclick="return confirm('Are you sure you want to delete this event?');"> <!-- Updated confirmation message -->
+                                                <i class='bx bx-trash'></i> Delete <!-- Changed text to Delete -->
+                                            </a>
+                                        </td>
+                                    </tr>
                                 <?php } ?>
                             </tbody>
                         </table>
@@ -352,10 +366,23 @@ if (isset($_POST['import'])) {
                                 <label class="form-label">Min Participants:</label>
                                 <input type="number" name="min_participants" class="form-control" value="" required>
                             </div>
-                            
+
                             <div class="form-group mb-4">
                                 <label class="form-label">Max Participants:</label>
                                 <input type="number" name="max_participants" class="form-control" value="" required>
+                            </div>
+
+                            <div class="form-group mb-3">
+                                <label class="form-label">Academic Year:</label>
+                                <select name="academic_year_id_display" class="form-control" required disabled>
+                                    <?php foreach ($academicYears as $year): ?>
+                                        <option value="<?= htmlspecialchars($year['id']) ?>" <?= (isset($academic_year_id) && $academic_year_id == $year['id']) ? 'selected' : '' ?>>
+                                            <?= htmlspecialchars($year['year']) ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                                <!-- Hidden field to actually submit the value -->
+                                <input type="hidden" name="academic_year_id" value="<?= isset($academic_year_id) ? htmlspecialchars($academic_year_id) : (isset($academicYears[0]['id']) ? htmlspecialchars($academicYears[0]['id']) : '') ?>">
                             </div>
 
                             <div class="form-group">
@@ -364,7 +391,7 @@ if (isset($_POST['import'])) {
                         </form>
                     </section>
                     <br><br>
-                    
+
                 </div>
             </div>
 
@@ -422,10 +449,10 @@ if (isset($_POST['import'])) {
     <script>
         function toggleContent(contentId) {
             const content = document.getElementById(contentId);
-            const otherContent = contentId === 'singleEventContent' ? 
-                document.getElementById('multipleEventContent') : 
+            const otherContent = contentId === 'singleEventContent' ?
+                document.getElementById('multipleEventContent') :
                 document.getElementById('singleEventContent');
-            
+
             if (content.style.display === 'none') {
                 content.style.display = 'block';
                 otherContent.style.display = 'none';
@@ -449,7 +476,7 @@ if (isset($_POST['import'])) {
         document.querySelectorAll('.edit-event').forEach(button => {
             button.addEventListener('click', function(e) {
                 e.preventDefault();
-                
+
                 // Get the data from the clicked button
                 const id = this.getAttribute('data-id');
                 const name = this.getAttribute('data-name');
@@ -460,7 +487,7 @@ if (isset($_POST['import'])) {
                 // Populate the form fields
                 document.querySelector('input[name="event_id"]').value = id;
                 document.querySelector('input[name="event_name"]').value = name;
-                
+
                 // Set the radio button for event type
                 document.querySelectorAll('input[name="event_type"]').forEach(radio => {
                     if (radio.value === type) {
@@ -480,7 +507,9 @@ if (isset($_POST['import'])) {
                 document.getElementById('multipleEventContent').style.display = 'none';
 
                 // Scroll to form
-                document.querySelector('.event-form').scrollIntoView({ behavior: 'smooth' });
+                document.querySelector('.event-form').scrollIntoView({
+                    behavior: 'smooth'
+                });
             });
         });
     </script>

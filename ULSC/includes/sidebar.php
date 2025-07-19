@@ -1,36 +1,68 @@
+
 <?php
-// Start session if not already started
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
+// Include the session check logic first and foremost.
+// This file will also call session_start() for us.
+require_once __DIR__ . '/session_management.php'; // Always use absolute path
 
 // Fetch session data
-$admin_username = $_SESSION['login'];
+$admin_username = $_SESSION['login'] ?? 'Guest';
 
-// Fetch department name for ULSC user if not already set
-if (!isset($dept_name)) {
+// Initialize $dept_name to a default value *before* any conditional logic.
+// This prevents the "Undefined variable" warning if the DB connection fails or ulsc_id is not set.
+$dept_name = 'Department';
+
+// Fetch department name for ULSC user if available
+if (isset($_SESSION['ulsc_id'])) {
     // You may need to include your config file for DB connection
-    include_once __DIR__ . '/config.php';
-    if (isset($_SESSION['ulsc_id'])) {
-        $ulsc_id = $_SESSION['ulsc_id'];
-        $query = $dbh->prepare("SELECT d.dept_name FROM ulsc u JOIN departments d ON u.dept_id = d.dept_id WHERE u.ulsc_id = :ulsc_id");
-        $query->bindParam(':ulsc_id', $ulsc_id, PDO::PARAM_STR);
-        $query->execute();
-        $row = $query->fetch(PDO::FETCH_ASSOC);
-        $dept_name = $row ? $row['dept_name'] : 'Department';
+    // Ensure config.php defines $dbh (your PDO object)
+    include_once __DIR__ . '/config.php'; // Adjust path for config.php
+
+    if (isset($dbh)) { // Check if $dbh was successfully set in config.php
+        try {
+            $ulsc_id = $_SESSION['ulsc_id'];
+            $query = $dbh->prepare("SELECT d.dept_name FROM ulsc u JOIN departments d ON u.dept_id = d.dept_id WHERE u.ulsc_id = :ulsc_id");
+            $query->bindParam(':ulsc_id', $ulsc_id, PDO::PARAM_STR);
+            $query->execute();
+            $row = $query->fetch(PDO::FETCH_ASSOC);
+            if ($row) {
+                $dept_name = $row['dept_name'];
+            }
+        } catch (PDOException $e) {
+            // Log the error or display a user-friendly message, but don't expose database details
+            error_log("Database error fetching department name: " . $e->getMessage());
+            $dept_name = 'Department (DB Error)';
+        }
     } else {
-        $dept_name = 'Department';
+        $dept_name = 'Department (DB Not Configured)';
     }
 }
 
+// Determine current page for active link highlighting
+$current_page = basename($_SERVER['PHP_SELF']);
+
 // Handle logout
 if (isset($_GET['logout'])) {
-    session_unset();
-    session_destroy();
+    session_unset(); // Unset all session variables
+    session_destroy(); // Destroy the session
+    // Clear session-related cookies to be thorough
+    if (ini_get("session.use_cookies")) {
+        $params = session_get_cookie_params();
+        setcookie(session_name(), '', time() - 42000,
+            $params["path"], $params["domain"],
+            $params["secure"], $params["httponly"]
+        );
+    }
     echo "<script>window.location.href='../index.php';</script>";
     exit();
 }
 
+// Make sure $remaining_time is available to JavaScript,
+// it comes from session_management.php
+// Use $remaining_time directly for consistency with Admin
+if (!isset($remaining_time) || !is_numeric($remaining_time)) {
+    $remaining_time = 0;
+}
+$js_remaining_time = (int)$remaining_time;
 ?>
 
 <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
@@ -45,43 +77,43 @@ if (isset($_GET['logout'])) {
         </div>
         <ul class="nav-links">
             <li>
-                <a href="ulscdashboard.php" class="<?php echo basename($_SERVER['PHP_SELF']) == 'ulscdashboard.php' ? 'active' : ''; ?>">
+                <a href="ulscdashboard.php" class="<?php echo ($current_page == 'ulscdashboard.php') ? 'active' : ''; ?>">
                     <i class='bx bxs-dashboard'></i>
                     <span class="links_name">Dashboard</span>
                 </a>
             </li>
             <li>
-                <a href="addsportsevent.php" class="<?php echo basename($_SERVER['PHP_SELF']) == 'addsportsevent.php' ? 'active' : ''; ?>">
+                <a href="addsportsevent.php" class="<?php echo ($current_page == 'addsportsevent.php') ? 'active' : ''; ?>">
                     <i class='bx bx-football'></i>
                     <span class="links_name">Sports Entry</span>
                 </a>
             </li>
             <li>
-                <a href="addculturalevent.php" class="<?php echo basename($_SERVER['PHP_SELF']) == 'addculturalevent.php' ? 'active' : ''; ?>">
+                <a href="addculturalevent.php" class="<?php echo ($current_page == 'addculturalevent.php') ? 'active' : ''; ?>">
                     <i class='bx bx-music'></i>
                     <span class="links_name">Cultural Entry</span>
                 </a>
             </li>
-       
+
             <li>
-                <a href="viewsportsevent.php" class="<?php echo basename($_SERVER['PHP_SELF']) == 'viewsportsevent.php' ? 'active' : ''; ?>">
+                <a href="viewsportsevent.php" class="<?php echo ($current_page == 'viewsportsevent.php') ? 'active' : ''; ?>">
                     <i class='bx bx-list-check'></i>
                     <span class="links_name">View Sports Entries</span>
                 </a>
             </li>
             <li>
-                <a href="viewculturalevent.php" class="<?php echo basename($_SERVER['PHP_SELF']) == 'viewculturalevent.php' ? 'active' : ''; ?>">
+                <a href="viewculturalevent.php" class="<?php echo ($current_page == 'viewculturalevent.php') ? 'active' : ''; ?>">
                     <i class='bx bx-list-ul'></i>
                     <span class="links_name">View Cultural Entries</span>
                 </a>
             </li>
-           
+
         </ul>
     </div>
 
     <section class="home-section">
         <nav>
-            <div class="sidebar-button">                                    
+            <div class="sidebar-button">
                 <i class='bx bx-menu sidebarBtn'></i>
                 <span class="dashboard">SPOURAL</span>
             </div>
@@ -96,17 +128,17 @@ if (isset($_GET['logout'])) {
                 </div>
             </div>
             <div>
-            <span class="dept-badge"><?php echo htmlspecialchars($dept_name); ?></span>
-</div>
+                <span class="dept-badge"><?php echo htmlspecialchars($dept_name); ?></span>
+            </div>
             <div class="profile-details" id="profileDropdown">
                 <img src="https://t4.ftcdn.net/jpg/00/97/00/09/360_F_97000908_wwH2goIihwrMoeV9QF3BW6HtpsVFaNVM.jpg" alt="profile">
                 <span class="admin_name"><?php echo htmlspecialchars($admin_username); ?></span>
                 <div class="session-timer">
                     <span>Session: </span>
-                    <span id="countdown"><?php echo $remaining_time; ?></span>s
+                    <span id="countdown"></span>
                 </div>
                 <i class='bx bx-chevron-down'></i>
-                
+
                 <div class="dropdown-menu" id="profileMenu">
                     <a href="profile.php" class="dropdown-item">
                         <i class='bx bx-user-circle'></i> Profile
@@ -122,149 +154,87 @@ if (isset($_GET['logout'])) {
                 // Profile dropdown functionality
                 const profileDetails = document.getElementById('profileDropdown');
                 const profileMenu = document.getElementById('profileMenu');
-                
-                // Toggle dropdown menu
+
                 if (profileDetails && profileMenu) {
                     profileDetails.addEventListener('click', function(e) {
                         e.stopPropagation();
                         profileMenu.classList.toggle('active');
                     });
-                    
-                    // Close dropdown when clicking elsewhere
+
                     document.addEventListener('click', function() {
                         profileMenu.classList.remove('active');
                     });
                 }
-                
-                // Sidebar toggle functionality - completely new implementation
+
+                // Sidebar toggle functionality - simplified from your previous version,
+                // matching the original logic structure but ensuring elements exist.
                 const sidebar = document.querySelector(".sidebar");
                 const sidebarBtn = document.querySelector(".sidebarBtn");
-                const homeSection = document.querySelector(".home-section");
-                
-                // Define sidebar states
-                const EXPANDED = {
-                    sidebarWidth: '260px',
-                    contentMargin: '260px',
-                    contentWidth: 'calc(100% - 260px)'
-                };
-                
-                const COLLAPSED = {
-                    sidebarWidth: '60px',
-                    contentMargin: '60px',
-                    contentWidth: 'calc(100% - 60px)'
-                };
-                
-                function setSidebarState(state) {
-                    // Apply to sidebar with a small delay to ensure smooth transition
-                    sidebar.style.width = state.sidebarWidth;
-                    
-                    // Apply to content area - fix position to prevent cutoff
-                    homeSection.style.marginLeft = state.contentMargin;
-                    homeSection.style.width = state.contentWidth;
-                    
-                    // Apply to navbar
-                    const nav = homeSection.querySelector('nav');
-                    if (nav) {
-                        nav.style.marginLeft = state.contentMargin;
-                        nav.style.width = state.contentWidth;
-                        
-                        // Ensure navbar elements maintain proper position
-                        const navElements = nav.querySelectorAll('div');
-                        navElements.forEach(el => {
-                            el.style.transition = 'all 0.5s ease';
-                        });
-                    }
-                    
-                    // Force a reflow immediately to ensure everything is positioned correctly
-                    document.body.offsetHeight;
-                    
-                    // Add 10ms delay to ensure browser has time to process layout changes
-                    setTimeout(() => {
-                        // Force a reflow to ensure content properly resizes
-                        document.body.style.minHeight = '100vh';
-                        
-                        // Double check content width and position
-                        if (state === COLLAPSED) {
-                            homeSection.style.width = 'calc(100% - 60px)';
-                            homeSection.style.marginLeft = '60px';
-                            if (nav) {
-                                nav.style.width = 'calc(100% - 60px)';
-                                nav.style.marginLeft = '60px';
-                                nav.style.left = '0';
-                            }
-                        } else {
-                            homeSection.style.width = 'calc(100% - 260px)';
-                            homeSection.style.marginLeft = '260px'; 
-                            if (nav) {
-                                nav.style.width = 'calc(100% - 260px)';
-                                nav.style.marginLeft = '260px';
-                                nav.style.left = '0';
-                            }
-                        }
-                    }, 50);
-                    
-                    // Toggle sidebar texts and icons visibility
-                    const logoName = document.querySelector('.logo_name');
-                    const linkNames = document.querySelectorAll('.links_name');
-                    
-                    if (state === COLLAPSED) {
-                        if (logoName) logoName.style.display = 'none';
-                        linkNames.forEach(link => link.style.display = 'none');
-                        sidebarBtn.className = 'bx bx-menu-alt-right sidebarBtn';
-                    } else {
-                        if (logoName) logoName.style.display = 'block';
-                        linkNames.forEach(link => link.style.display = 'block');
-                        sidebarBtn.className = 'bx bx-menu sidebarBtn';
-                    }
-                }
-                
+                const homeSection = document.querySelector(".home-section"); // Assuming this applies to the main content area
+
                 if (sidebar && sidebarBtn && homeSection) {
-                    // Set initial state
-                    let isCollapsed = false;
-                    setSidebarState(EXPANDED);
-                    
-                    // Toggle sidebar on button click
-                    sidebarBtn.addEventListener('click', function() {
-                        console.log('Sidebar button clicked');
-                        isCollapsed = !isCollapsed;
-                        setSidebarState(isCollapsed ? COLLAPSED : EXPANDED);
-                        console.log('Sidebar state changed to:', isCollapsed ? 'collapsed' : 'expanded');
-                    });
+                    sidebarBtn.onclick = function() {
+                        sidebar.classList.toggle("active");
+                        if (sidebar.classList.contains("active")) {
+                            sidebarBtn.classList.replace("bx-menu", "bx-menu-alt-right");
+                            // Adjust home-section for collapsed sidebar
+                            homeSection.style.marginLeft = '60px'; // Same as COLLAPSED.contentMargin
+                            homeSection.style.width = 'calc(100% - 60px)'; // Same as COLLAPSED.contentWidth
+                        } else {
+                            sidebarBtn.classList.replace("bx-menu-alt-right", "bx-menu");
+                            // Adjust home-section for expanded sidebar
+                            homeSection.style.marginLeft = '260px'; // Same as EXPANDED.contentMargin
+                            homeSection.style.width = 'calc(100% - 260px)'; // Same as EXPANDED.contentWidth
+                        }
+                        // Also adjust the nav bar if it's separate from homeSection content
+                        const nav = homeSection.querySelector('nav');
+                        if (nav) {
+                            nav.style.marginLeft = homeSection.style.marginLeft;
+                            nav.style.width = homeSection.style.width;
+                        }
+                    };
                 } else {
-                    console.error('Required elements not found:', { sidebar, sidebarBtn, homeSection });
+                    console.error('Required elements for sidebar not found.');
                 }
-                
-                // Session countdown timer
-                let timeLeft = <?php echo $remaining_time; ?>;
+
+                // Session countdown timer (match Admin logic)
+                let timeLeft = <?php echo (int)$js_remaining_time; ?>;
                 const countdownElement = document.getElementById('countdown');
-                
+
                 if (countdownElement) {
+                    function formatTime(seconds) {
+                        const minutes = Math.floor(seconds / 60);
+                        const remainingSeconds = seconds % 60;
+                        return `${minutes}:${remainingSeconds < 10 ? '0' : ''}${remainingSeconds}`;
+                    }
+
+                    // Set initial display
+                    countdownElement.textContent = formatTime(timeLeft);
+
                     function updateCountdown() {
                         timeLeft--;
-                        
-                        // Calculate minutes and seconds
-                        const minutes = Math.floor(timeLeft / 60);
-                        const seconds = timeLeft % 60;
-                        
-                        // Format time as MM:SS
-                        countdownElement.textContent = `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
-                        
-                        if (timeLeft <= 10) {
+                        countdownElement.textContent = formatTime(timeLeft);
+
+                        if (timeLeft <= 60 && timeLeft > 0) { // Highlight red for last 1 minute
                             countdownElement.style.color = '#ff0000';
                             countdownElement.style.fontWeight = 'bold';
+                        } else if (timeLeft > 60) { // Reset color if it goes back up (e.g., after refresh)
+                            countdownElement.style.color = '#2942a6';
+                            countdownElement.style.fontWeight = '500';
                         }
-                        
+
                         if (timeLeft <= 0) {
-                            // Session expired, redirect to login
+                            clearInterval(countdownInterval); // Stop the interval
                             window.location.href = '../index.php?error=session_expired';
                         }
                     }
-                    
-                    // Update countdown every second
-                    setInterval(updateCountdown, 1000);
+
+                    const countdownInterval = setInterval(updateCountdown, 1000);
+                } else {
+                    console.error('Countdown element not found.');
                 }
             });
         </script>
         <?php
-                        include_once('../includes/footer.php');
+        include_once('../includes/footer.php');
         ?>

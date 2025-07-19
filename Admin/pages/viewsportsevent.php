@@ -3,27 +3,27 @@ include('../includes/session_management.php');
 include('../includes/config.php');
 
 // Check if user is logged in, else redirect to login
-if (!isset($_SESSION['ulsc_id'])) {
+if (!isset($_SESSION['login'])) {
     header("Location: ../index.php");
     exit;
 }
 
-// Fetch ULSC details
-$ulsc_id = $_SESSION['ulsc_id'];
-$query = $dbh->prepare("SELECT u.*, d.dept_name FROM ulsc u JOIN departments d ON u.dept_id = d.dept_id WHERE u.ulsc_id = :ulsc_id");
-$query->bindParam(':ulsc_id', $ulsc_id, PDO::PARAM_STR);
+// Fetch admin details using admin_id from session
+$admin_id = $_SESSION['login'];
+$query = $dbh->prepare("SELECT * FROM admins WHERE admin_id = :admin_id");
+$query->bindParam(':admin_id', $admin_id, PDO::PARAM_STR);
 $query->execute();
-$ulsc = $query->fetch(PDO::FETCH_ASSOC);
+$admin = $query->fetch(PDO::FETCH_ASSOC);
 
-if (!$ulsc) {
+if (!$admin) {
     session_destroy();
     header("Location: ../index.php?error=invalid_session");
     exit;
 }
 
-$dept_id = $ulsc['dept_id'];
-$ulsc_name = $ulsc['ulsc_name'];
-$dept_name = $ulsc['dept_name'];
+$dept_id = $admin['dept_id'];
+$ulsc_name = $admin['admin_name'];
+// $dept_name = $admin['dept_name'];
 
 // Fetch all events
 $all_events = $dbh->query("SELECT * FROM events WHERE event_type = 'Sports' ORDER BY event_name")->fetchAll(PDO::FETCH_ASSOC);

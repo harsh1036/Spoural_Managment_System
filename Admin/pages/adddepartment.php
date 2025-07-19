@@ -3,7 +3,6 @@ require_once __DIR__ . '/SimpleXLSXGen.php';
 require_once __DIR__ . '/SimpleXLSX.php';
 use Shuchkin\SimpleXLSXGen;
 use Shuchkin\SimpleXLSX;
-
 include('../includes/session_management.php');
 include('../includes/config.php');
 
@@ -18,6 +17,11 @@ $admin_username = $_SESSION['login'];
 
 // Initialize variables
 $dept_id = $dept_name = "";
+$academicYears = [];
+$yearQuery = $dbh->query("SELECT id, year FROM academic_years ORDER BY year DESC");
+if ($yearQuery) {
+    $academicYears = $yearQuery->fetchAll(PDO::FETCH_ASSOC);
+}
 
 // Handle download template
 if (isset($_GET['download_template'])) {
@@ -40,7 +44,7 @@ if (isset($_GET['delete_id'])) {
         $sql = "DELETE FROM departments WHERE dept_id = :id";
         $stmt = $dbh->prepare($sql);
         $stmt->bindParam(':id', $delete_id, PDO::PARAM_INT);
-        
+
         if ($stmt->execute()) {
             echo "<script>alert('Department deleted successfully!'); window.location.href='adddepartment.php';</script>";
         } else {
@@ -59,10 +63,11 @@ if (isset($_GET['edit_id'])) {
         $stmt = $dbh->prepare($sql);
         $stmt->bindParam(':id', $edit_id, PDO::PARAM_INT);
         $stmt->execute();
-        
+
         if ($department = $stmt->fetch(PDO::FETCH_ASSOC)) {
             $dept_id = $department['dept_id'];
             $dept_name = $department['dept_name'];
+            $academic_year_id = $department['academic_year_id'];
         }
     } catch (PDOException $e) {
         echo "<script>alert('Database error: " . $e->getMessage() . "');</script>";
@@ -73,29 +78,27 @@ if (isset($_GET['edit_id'])) {
 if (isset($_POST['import'])) {
     if ($_FILES['excel_file']['error'] == UPLOAD_ERR_OK) {
         $file = $_FILES['excel_file']['tmp_name'];
-        
+
         if ($xlsx = SimpleXLSX::parse($file)) {
             $rows = $xlsx->rows();
             $expectedColumns = ['dept_id', 'dept_name'];
-            
-            // Validate column names
+
             if ($rows[0] !== $expectedColumns) {
                 echo "<script>alert('Error: Column names do not match the expected format!'); window.location.href='adddepartment.php';</script>";
                 exit;
             } else {
                 try {
                     $dbh->beginTransaction();
-                    
+
                     foreach (array_slice($rows, 1) as $row) {
-                        $dept_id = $row[0]; 
+                        $dept_id = $row[0];
                         $dept_name = $row[1];
 
-                        // Check if department ID already exists
                         $check_sql = "SELECT COUNT(*) FROM departments WHERE dept_id = :dept_id";
                         $check_stmt = $dbh->prepare($check_sql);
                         $check_stmt->bindParam(':dept_id', $dept_id, PDO::PARAM_INT);
                         $check_stmt->execute();
-                        
+
                         if ($check_stmt->fetchColumn() > 0) {
                             throw new Exception("Department ID $dept_id already exists");
                         }
@@ -106,11 +109,11 @@ if (isset($_POST['import'])) {
                         $stmt->bindParam(':dept_name', $dept_name, PDO::PARAM_STR);
                         $stmt->execute();
                     }
-                    
+
                     $dbh->commit();
                     echo "<script>alert('Data imported successfully!'); window.location.href='adddepartment.php';</script>";
                     exit;
-                    
+
                 } catch (Exception $e) {
                     $dbh->rollBack();
                     echo "<script>alert('Error: " . addslashes($e->getMessage()) . "'); window.location.href='adddepartment.php';</script>";
@@ -131,20 +134,20 @@ if (isset($_POST['import'])) {
 if (isset($_POST['save_department'])) {
     $dept_name = $_POST['dept_name'];
     $dept_id = $_POST['dept_id'];
+    $academic_year_id = isset($_POST['academic_year_id']) ? trim($_POST['academic_year_id']) : '';
 
     try {
         if (!empty($dept_id)) {
-            // Update existing department
-            $sql = "UPDATE departments SET dept_name = :name WHERE dept_id = :id";
+            $sql = "UPDATE departments SET dept_name = :name, academic_year_id = :academic_year_id WHERE dept_id = :id";
             $stmt = $dbh->prepare($sql);
             $stmt->bindParam(':id', $dept_id, PDO::PARAM_INT);
         } else {
-            // Insert new department
-            $sql = "INSERT INTO departments (dept_name) VALUES (:name)";
+            $sql = "INSERT INTO departments (dept_name, academic_year_id) VALUES (:name, :academic_year_id)";
             $stmt = $dbh->prepare($sql);
         }
 
         $stmt->bindParam(':name', $dept_name, PDO::PARAM_STR);
+        $stmt->bindParam(':academic_year_id', $academic_year_id, PDO::PARAM_INT);
 
         if ($stmt->execute()) {
             echo "<script>alert('Department saved successfully!'); window.location.href='adddepartment.php';</script>";
@@ -155,12 +158,10 @@ if (isset($_POST['save_department'])) {
         echo "<script>alert('Database error: " . $e->getMessage() . "');</script>";
     }
 }
-
 ?>
 
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -215,18 +216,25 @@ if (isset($_POST['save_department'])) {
     }
     </style>
 </head>
-
 <body>
     <?php include_once('../includes/sidebar.php'); ?>
-
     <div class="home-content">
         <div class="participant-entry-container">
             <div class="content-card">
                 <div class="content-header">
                     <h2><i class='bx bx-user-circle'></i> Departments</h2>
+                    <div style="margin-top: 10px;">
+                        <label for="academicYear">Academic Year: </label>
+                        <select id="academicYear" name="academicYear_display" disabled>
+                            <?php foreach ($academicYears as $year): ?>
+                                <option value="<?= htmlspecialchars($year['id']) ?>" <?= (isset($academic_year_id) && $academic_year_id == $year['id']) ? 'selected' : '' ?>>
+                                    <?= htmlspecialchars($year['year']) ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                        <input type="hidden" name="academic_year_id" value="<?= isset($academic_year_id) ? htmlspecialchars($academic_year_id) : (isset($academicYears[0]['id']) ? htmlspecialchars($academicYears[0]['id']) : '') ?>">
+                    </div>
                 </div>
-
-                <!-- Move View Departments table here -->
                 <section class="department-table">
                     <h3>View Departments</h3>
                     <div class="table-scroll" style="max-height: 400px; overflow-y: auto;">
@@ -241,19 +249,18 @@ if (isset($_POST['save_department'])) {
                                 </tr>
                             </thead>
                             <tbody>
-                                <?php 
+                                <?php
                                 $query = $dbh->prepare("SELECT d.*, ay.year AS academic_year FROM departments d LEFT JOIN academic_years ay ON d.academic_year_id = ay.id ORDER BY d.dept_id DESC");
-                                $query = $dbh->prepare("SELECT d.*, ay.year AS academic_year FROM departments d LEFT JOIN academic_years ay ON d.academic_years = ay.id ORDER BY d.dept_id DESC");
                                 $query->execute();
                                 $departments = $query->fetchAll(PDO::FETCH_ASSOC);
-                                foreach ($departments as $dept) { 
+                                foreach ($departments as $dept) {
                                 ?>
                                 <tr>
                                     <td><?= htmlspecialchars($dept['dept_id']) ?></td>
                                     <td><?= htmlspecialchars($dept['dept_name']) ?></td>
                                     <td><?= htmlspecialchars($dept['academic_year'] ?? '-') ?></td>
                                     <td>
-                                        <a href="#" class="edit-dept btn btn-sm btn-primary" data-id="<?= $dept['dept_id'] ?>" data-name="<?= htmlspecialchars($dept['dept_name']) ?>">
+                                        <a href="#" class="edit-dept btn btn-sm btn-primary" data-id="<?= $dept['dept_id'] ?>" data-name="<?= htmlspecialchars($dept['dept_name']) ?>" data-academic-year-id="<?= isset($dept['academic_year_id']) ? $dept['academic_year_id'] : '' ?>">
                                             <i class='bx bx-edit'></i> Edit
                                         </a>
                                     </td>
@@ -268,8 +275,6 @@ if (isset($_POST['save_department'])) {
                         </table>
                     </div>
                 </section>
-
-                <!-- Card UI for upload options -->
                 <div class="card-container">
                     <div class="upload-card" id="singleDeptCard">
                         <div class="icon-title-row">
@@ -287,7 +292,6 @@ if (isset($_POST['save_department'])) {
                     </div>
                 </div>
             </div>
-
             <div class="content-card" id="singleDeptContent" style="display: none;">
                 <div class="content-header">
                     <h2><i class='bx bx-detail'></i> Single Department Management</h2>
@@ -297,16 +301,24 @@ if (isset($_POST['save_department'])) {
                         <h3><?= isset($_GET['edit_id']) ? 'Edit Department' : 'New Department' ?></h3>
                         <form method="post" action="adddepartment.php" class="department-input-form">
                             <input type="hidden" name="dept_id" value="<?= isset($_GET['edit_id']) ? htmlspecialchars($_GET['edit_id']) : '' ?>">
-
                             <label>Department Name:</label>
                             <input type="text" name="dept_name" class="input-field" value="<?= isset($dept_name) ? htmlspecialchars($dept_name) : '' ?>" required>
-
+                            <div class="form-group">
+                                <label>Academic Year:</label>
+                                <select name="academic_year_id_display" class="input-field" required disabled>
+                                    <?php foreach ($academicYears as $year): ?>
+                                        <option value="<?= htmlspecialchars($year['id']) ?>" <?= (isset($academic_year_id) && $academic_year_id == $year['id']) ? 'selected' : '' ?>>
+                                            <?= htmlspecialchars($year['year']) ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                                <input type="hidden" name="academic_year_id" value="<?= isset($academic_year_id) ? htmlspecialchars($academic_year_id) : (isset($academicYears[0]['id']) ? htmlspecialchars($academicYears[0]['id']) : '') ?>">
+                            </div>
                             <button type="submit" name="save_department" class="submit-button"><?= isset($_GET['edit_id']) ? 'Update' : 'Submit' ?></button>
                         </form>
                     </section>
                 </div>
             </div>
-
             <div class="content-card" id="multipleDeptContent" style="display: none;">
                 <div class="content-header">
                     <h2><i class='bx bx-list-ul'></i> Multiple Departments Management</h2>
@@ -338,32 +350,16 @@ if (isset($_POST['save_department'])) {
                     </div>
                 </div>
             </div>
-
-            <!-- <div class="content-card">
-                <div class="content-header">
-                    <h2><i class='bx bx-info-circle'></i> Department Information</h2>
-                </div>
-                <div class="card-content">
-                    <p>Use the options above to manage departments. You can:</p>
-                    <ul>
-                        <li>View the list of departments</li>
-                        <li>Manage department details</li>
-                        <li>View all department information at once</li>
-                    </ul>
-                </div>
-            </div> -->
         </div>
     </div>
-
     <?php include_once('../includes/footer.php'); ?>
-
     <script>
         function toggleContent(contentId) {
             const content = document.getElementById(contentId);
-            const otherContent = contentId === 'singleDeptContent' ? 
-                document.getElementById('multipleDeptContent') : 
+            const otherContent = contentId === 'singleDeptContent' ?
+                document.getElementById('multipleDeptContent') :
                 document.getElementById('singleDeptContent');
-            
+
             if (content.style.display === 'none') {
                 content.style.display = 'block';
                 otherContent.style.display = 'none';
@@ -372,49 +368,34 @@ if (isset($_POST['save_department'])) {
             }
         }
 
-        document.getElementById('singleDeptBtn').addEventListener('click', function(e) {
-            e.preventDefault();
-            toggleContent('singleDeptContent');
-        });
-
-        document.getElementById('multipleDeptBtn').addEventListener('click', function(e) {
-            e.preventDefault();
-            toggleContent('multipleDeptContent');
-        });
-
-        document.querySelectorAll('.edit-dept').forEach(button => {
-            button.addEventListener('click', function(e) {
-                e.preventDefault();
-                
-                const id = this.getAttribute('data-id');
-                const name = this.getAttribute('data-name');
-
-                document.querySelector('input[name="dept_id"]').value = id;
-                document.querySelector('input[name="dept_name"]').value = name;
-
-                document.querySelector('.department-form h3').textContent = 'Edit Department';
-
-                document.querySelector('button[name="save_department"]').textContent = 'Update';
-
+        document.addEventListener('DOMContentLoaded', function() {
+            document.getElementById('singleDeptCard').addEventListener('click', function() {
                 document.getElementById('singleDeptContent').style.display = 'block';
                 document.getElementById('multipleDeptContent').style.display = 'none';
+            });
 
-                document.querySelector('.department-form').scrollIntoView({ behavior: 'smooth' });
+            document.getElementById('multipleDeptCard').addEventListener('click', function() {
+                document.getElementById('singleDeptContent').style.display = 'none';
+                document.getElementById('multipleDeptContent').style.display = 'block';
+            });
+
+            document.querySelectorAll('.edit-dept').forEach(button => {
+                button.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const id = this.getAttribute('data-id');
+                    const name = this.getAttribute('data-name');
+                    let academicYearId = this.getAttribute('data-academic-year-id');
+
+                    document.getElementById('singleDeptContent').style.display = 'block';
+                    document.getElementById('multipleDeptContent').style.display = 'none';
+                    document.querySelector('input[name="dept_id"]').value = id;
+                    document.querySelector('input[name="dept_name"]').value = name;
+                    document.querySelector('.department-form h3').textContent = 'Edit Department';
+                    document.querySelector('button[name="save_department"]').textContent = 'Update';
+                    document.querySelector('.department-form').scrollIntoView({ behavior: 'smooth' });
+                });
             });
         });
     </script>
-    <script>
-document.addEventListener('DOMContentLoaded', function() {
-    document.getElementById('singleDeptCard').addEventListener('click', function() {
-        document.getElementById('singleDeptContent').style.display = 'block';
-        document.getElementById('multipleDeptContent').style.display = 'none';
-    });
-    document.getElementById('multipleDeptCard').addEventListener('click', function() {
-        document.getElementById('singleDeptContent').style.display = 'none';
-        document.getElementById('multipleDeptContent').style.display = 'block';
-    });
-});
-</script>
 </body>
-
 </html>

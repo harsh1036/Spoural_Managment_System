@@ -29,7 +29,7 @@ if (isset($_GET['edit_id'])) {
 if (isset($_POST['add_admin'])) {
     $admin_name = $_POST['admin_name'];
     $admin_id = $_POST['admin_id'];
-    $random_password = generateRandomPassword(); // Generate a random password
+    $random_password = 12345; // Generate a random password
 
     $sql = "INSERT INTO admins (admin_id, admin_name, password) VALUES (:admin_id, :admin_name, :password)";
     $query = $dbh->prepare($sql);
@@ -67,7 +67,7 @@ if (isset($_POST['edit_admin'])) {
 if (isset($_GET['delete_id'])) {
     $admin_id = $_GET['delete_id'];
 
-    $sql = "DELETE FROM admins WHERE admin_id = :admin_id";
+    $sql = "UPDATE admins SET status = 0 WHERE admin_id = :admin_id";
     $query = $dbh->prepare($sql);
     $query->bindParam(':admin_id', $admin_id, PDO::PARAM_STR);
 
@@ -81,12 +81,12 @@ if (isset($_GET['delete_id'])) {
 // **FETCH ADMINS WITH OPTIONAL SEARCH**
 $search = isset($_GET['search']) ? trim($_GET['search']) : '';
 if ($search !== '') {
-    $sql = "SELECT * FROM admins WHERE admin_id LIKE :search OR admin_name LIKE :search";
+    $sql = "SELECT * FROM admins WHERE status = 1 AND (admin_id LIKE :search OR admin_name LIKE :search)";
     $query = $dbh->prepare($sql);
     $likeSearch = "%$search%";
     $query->bindParam(':search', $likeSearch, PDO::PARAM_STR);
 } else {
-    $sql = "SELECT * FROM admins";
+    $sql = "SELECT * FROM admins WHERE status = 1";
     $query = $dbh->prepare($sql);
 }
 $query->execute();
