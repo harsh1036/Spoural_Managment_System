@@ -130,7 +130,7 @@ if (isset($_POST['import'])) {
         
         if ($xlsx = SimpleXLSX::parse($file)) {
             $rows = $xlsx->rows();
-            $expectedColumns = ['student_id', 'student_name', 'contact', 'dept_id'];
+            $expectedColumns = ['student_id', 'student_name', 'contact', 'dept_id','status','academic_year_id'];
             
             // Validate column names
             if ($rows[0] !== $expectedColumns) {

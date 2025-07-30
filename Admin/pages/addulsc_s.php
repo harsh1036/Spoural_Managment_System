@@ -102,7 +102,7 @@ if (isset($_POST['import'])) {
         
         if ($xlsx = SimpleXLSX::parse($file)) {
             $rows = $xlsx->rows();
-            $expectedColumns = ['ulsc_id', 'ulsc_name', 'dept_id', 'contact'];
+            $expectedColumns = ['id','ulsc_id', 'ulsc_name', 'dept_id', 'contact','email','password','status','academic_year_id'];
             
             // Validate column names
             if ($rows[0] !== $expectedColumns) {
@@ -114,7 +114,7 @@ if (isset($_POST['import'])) {
                     $missingStudentIds = [];
                     $validRows = [];
                     foreach (array_slice($rows, 1) as $row) {
-                        $ulsc_id = $row[0];
+                        $ulsc_id = $row[1]; // ULSC ID is in column 1 (index 1)
                         // Check if student exists
                         $check_student = $dbh->prepare("SELECT COUNT(*) FROM student WHERE student_id = :student_id");
                         $check_student->bindParam(':student_id', $ulsc_id, PDO::PARAM_STR);
@@ -133,10 +133,11 @@ if (isset($_POST['import'])) {
                     }
                     // All student IDs are valid, proceed with import
                     foreach ($validRows as $row) {
-                        $ulsc_id = $row[0]; 
-                        $ulsc_name = $row[1]; 
-                        $dept_id = $row[2]; 
-                        $contact = $row[3];
+                        $ulsc_id = $row[1]; // ULSC ID is in column 1 (index 1)
+                        $ulsc_name = $row[2]; // ULSC Name is in column 2 (index 2)
+                        $dept_id = $row[3]; // Department ID is in column 3 (index 3)
+                        $contact = $row[4]; // Contact is in column 4 (index 4)
+                        $academic_year_id = $row[8]; // Academic Year ID is in column 8 (index 8)
 
                         // Generate email and password
                         $email = $ulsc_id . "@charusat.edu.in";
@@ -153,12 +154,13 @@ if (isset($_POST['import'])) {
                             throw new Exception("ULSC ID $ulsc_id already exists");
                         }
 
-                        $sql = "INSERT INTO ulsc (ulsc_id, ulsc_name, dept_id, contact, email, password) VALUES (:ulsc_id, :ulsc_name, :dept_id, :contact, :email, :password)";
+                        $sql = "INSERT INTO ulsc (ulsc_id, ulsc_name, dept_id, contact, academic_year_id, email, password) VALUES (:ulsc_id, :ulsc_name, :dept_id, :contact, :academic_year_id, :email, :password)";
                         $stmt = $dbh->prepare($sql);
                         $stmt->bindParam(':ulsc_id', $ulsc_id, PDO::PARAM_STR);
                         $stmt->bindParam(':ulsc_name', $ulsc_name, PDO::PARAM_STR);
                         $stmt->bindParam(':dept_id', $dept_id, PDO::PARAM_INT);
                         $stmt->bindParam(':contact', $contact, PDO::PARAM_STR);
+                        $stmt->bindParam(':academic_year_id', $academic_year_id, PDO::PARAM_INT);
                         $stmt->bindParam(':email', $email, PDO::PARAM_STR);
                         $stmt->bindParam(':password', $hashed_password, PDO::PARAM_STR);
                         $stmt->execute();
@@ -185,13 +187,17 @@ if (isset($_POST['import'])) {
 }
 
 // Handle AJAX request for student info (MUST be before any HTML output)
-if (isset($_GET['ajax']) && $_GET['ajax'] === 'student_info' && isset($_GET['student_id'])) {
+if (isset($_GET['ajax']) && $_GET['ajax'] === 'student_info' && isset($_GET['student_id']) && isset($_GET['dept_id'])) {
     header('Content-Type: application/json');
     $student_id = $_GET['student_id'];
-    $stmt = $dbh->prepare("SELECT student_id, student_name, dept_id FROM student WHERE student_id = :student_id");
+    $dept_id = $_GET['dept_id'];
+    
+    $stmt = $dbh->prepare("SELECT student_id, student_name, dept_id, contact FROM student WHERE student_id = :student_id AND dept_id = :dept_id");
     $stmt->bindParam(':student_id', $student_id, PDO::PARAM_STR);
+    $stmt->bindParam(':dept_id', $dept_id, PDO::PARAM_INT);
     $stmt->execute();
     $student = $stmt->fetch(PDO::FETCH_ASSOC);
+    
     if ($student) {
         $dept_stmt = $dbh->prepare("SELECT dept_name FROM departments WHERE dept_id = :dept_id");
         $dept_stmt->bindParam(':dept_id', $student['dept_id'], PDO::PARAM_INT);
@@ -201,10 +207,11 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === 'student_info' && isset($_GET['stu
             'success' => true,
             'student_name' => $student['student_name'],
             'dept_id' => $student['dept_id'],
-            'dept_name' => $dept['dept_name'] ?? ''
+            'dept_name' => $dept['dept_name'] ?? '',
+            'contact' => $student['contact'] ?? ''
         ]);
     } else {
-        echo json_encode(['success' => false, 'message' => 'Student not found']);
+        echo json_encode(['success' => false, 'message' => 'Student not found or does not belong to selected department']);
     }
     exit;
 }
@@ -218,13 +225,22 @@ if (isset($_POST['save_ulsc'])) {
         $ulsc_id = trim($_POST['ulsc_id']);
         $ulsc_name = trim($_POST['ulsc_name']);
         $dept_id = trim($_POST['dept_id']);
-        $contact = trim($_POST['contact']);
-        $academic_year_id = isset($_POST['academic_year_id']) ? trim($_POST['academic_year_id']) : '';
+        $contact = trim($_POST['contact'] ?? ''); // Add null coalescing operator
+        $academic_year_id = trim($_POST['academic_year_id'] ?? ''); // Get from hidden field
         $id = isset($_POST['id']) ? trim($_POST['id']) : '';
+
+        // Debug: Log all values
+        error_log("Debug values - ulsc_id: '$ulsc_id', ulsc_name: '$ulsc_name', dept_id: '$dept_id', contact: '$contact', academic_year_id: '$academic_year_id'");
 
         // Validate form data
         if (empty($ulsc_id) || empty($ulsc_name) || empty($dept_id) || empty($contact) || empty($academic_year_id)) {
-            throw new Exception("All fields are required");
+            $missing_fields = [];
+            if (empty($ulsc_id)) $missing_fields[] = 'ulsc_id';
+            if (empty($ulsc_name)) $missing_fields[] = 'ulsc_name';
+            if (empty($dept_id)) $missing_fields[] = 'dept_id';
+            if (empty($contact)) $missing_fields[] = 'contact';
+            if (empty($academic_year_id)) $missing_fields[] = 'academic_year_id';
+            throw new Exception("Missing required fields: " . implode(', ', $missing_fields));
         }
 
         // Generate email and password
@@ -433,7 +449,7 @@ if (isset($_POST['save_ulsc'])) {
 
                     <div style="margin-top: 10px;">
                         <label for="academicYear">Academic Year: </label>
-                        <select id="academicYear" name="academicYear_display" disabled>
+                        <select id="academicYear" name="academicYear_display">
                             <?php foreach ($academicYears as $year): ?>
                                 <option value="<?= htmlspecialchars($year['id']) ?>" <?= (isset($academic_year_id) && $academic_year_id == $year['id']) ? 'selected' : '' ?>>
                                     <?= htmlspecialchars($year['year']) ?>
@@ -534,24 +550,11 @@ if (isset($_POST['save_ulsc'])) {
                         <h3><?= empty($id) ? 'New ULSC' : 'Edit ULSC' ?></h3>
                         <form method="post" class="ulsc-input-form">
                             <input type="hidden" name="id" value="<?= htmlspecialchars($id) ?>">
+                            <input type="hidden" name="academic_year_id" id="academicYearHidden" value="">
                             
                             <div class="form-group">
-                                <label>ULSC ID (Student ID):</label>
-                                <input type="text" name="ulsc_id" class="input-field" value="<?= htmlspecialchars($ulsc_id) ?>" required id="ulscIdInput">
-                                <div style="margin-top: 5px;">
-                                    <strong>Name:</strong> <span id="studentNameDisplay"></span><br>
-                                    <strong>Department:</strong> <span id="studentDeptDisplay"></span>
-                                </div>
-                            </div>
-
-                            <div class="form-group">
-                                <label>ULSC Name:</label>
-                                <input type="text" name="ulsc_name" class="input-field" value="<?= htmlspecialchars($ulsc_name) ?>" required>
-                            </div>
-
-                            <div class="form-group">
                                 <label>Department:</label>
-                                <select name="dept_id" class="input-field" required>
+                                <select name="dept_id" class="input-field" required id="deptSelect">
                                     <option value="">Select Department</option>
                                     <?php 
                                     $dept_sql = "SELECT dept_id, dept_name FROM departments";
@@ -567,22 +570,22 @@ if (isset($_POST['save_ulsc'])) {
                             </div>
 
                             <div class="form-group">
-                                <label>Contact Number:</label>
-                                <input type="number" name="contact" class="input-field" value="<?= htmlspecialchars($contact) ?>" required>
+                                <label>ULSC ID (Student ID):</label>
+                                <input type="text" name="ulsc_id" class="input-field" value="<?= htmlspecialchars($ulsc_id) ?>" required id="ulscIdInput" disabled>
+                                <div style="margin-top: 5px;">
+                                    <span id="studentNameDisplay"></span><br>
+                                    <span id="studentDeptDisplay"></span>
+                                </div>
                             </div>
 
                             <div class="form-group">
-                                <label>Academic Year:</label>
-                                <select name="academic_year_id_display" class="input-field" required disabled>
-                                    <?php foreach (
-                                        $academicYears as $year): ?>
-                                        <option value="<?= htmlspecialchars($year['id']) ?>" <?= (isset($academic_year_id) && $academic_year_id == $year['id']) ? 'selected' : '' ?>>
-                                            <?= htmlspecialchars($year['year']) ?>
-                                        </option>
-                                    <?php endforeach; ?>
-                                </select>
-                                <!-- Hidden field to actually submit the value -->
-                                <input type="hidden" name="academic_year_id" value="<?= isset($academic_year_id) ? htmlspecialchars($academic_year_id) : (isset($academicYears[0]['id']) ? htmlspecialchars($academicYears[0]['id']) : '') ?>">
+                                <label>ULSC Name:</label>
+                                <input type="text" name="ulsc_name" class="input-field" value="<?= htmlspecialchars($ulsc_name) ?>" required id="ulscNameInput" readonly>
+                            </div>
+
+                            <div class="form-group">
+                                <label>Contact Number:</label>
+                                <input type="number" name="contact" class="input-field" value="<?= htmlspecialchars($contact) ?>" required id="ulscContactInput" readonly>
                             </div>
 
                             <button type="submit" name="save_ulsc" class="submit-button">
@@ -760,7 +763,7 @@ if (isset($_POST['save_ulsc'])) {
                 document.querySelector('input[name="ulsc_name"]').value = ulscName;
                 document.querySelector('select[name="dept_id"]').value = deptId;
                 document.querySelector('input[name="contact"]').value = contact;
-                document.querySelector('input[name="academic_year_id"]').value = academicYearId;
+                document.querySelector('select[name="academic_year_id"]').value = academicYearId;
 
                 document.querySelector('.ulsc-form h3').textContent = 'Edit ULSC';
                 document.querySelector('button[name="save_ulsc"]').textContent = 'Update';
@@ -786,7 +789,7 @@ document.addEventListener('DOMContentLoaded', function() {
         document.querySelector('input[name="ulsc_name"]').value = '';
         document.querySelector('select[name="dept_id"]').value = '';
         document.querySelector('input[name="contact"]').value = '';
-        document.querySelector('input[name="academic_year_id"]').value = '';
+        document.querySelector('select[name="academic_year_id"]').value = '';
         document.querySelector('.ulsc-form h3').textContent = 'New ULSC';
         document.querySelector('button[name="save_ulsc"]').textContent = 'Submit';
     });
@@ -810,7 +813,7 @@ document.addEventListener('DOMContentLoaded', function() {
             document.querySelector('input[name="ulsc_name"]').value = ulscName;
             document.querySelector('select[name="dept_id"]').value = deptId;
             document.querySelector('input[name="contact"]').value = contact;
-            document.querySelector('input[name="academic_year_id"]').value = academicYearId;
+            document.querySelector('select[name="academic_year_id"]').value = academicYearId;
             document.querySelector('.ulsc-form h3').textContent = 'Edit ULSC';
             document.querySelector('button[name="save_ulsc"]').textContent = 'Update';
             document.querySelector('.ulsc-form').scrollIntoView({ behavior: 'smooth' });
@@ -845,53 +848,104 @@ window.academicYearsList = <?php echo json_encode($academicYears); ?>;
 let lastStudentValid = false;
 document.addEventListener('DOMContentLoaded', function() {
     var ulscIdInput = document.getElementById('ulscIdInput');
-    if (ulscIdInput) {
-        ulscIdInput.addEventListener('blur', function() {
-            var studentId = this.value.trim();
-            if (!studentId) {
+    var deptSelect = document.getElementById('deptSelect');
+    var ulscNameInput = document.getElementById('ulscNameInput');
+    var ulscContactInput = document.getElementById('ulscContactInput');
+    var academicYearSelect = document.getElementById('academicYear');
+    var academicYearHidden = document.getElementById('academicYearHidden');
+
+    // Set initial academic year value
+    if (academicYearSelect && academicYearHidden) {
+        academicYearHidden.value = academicYearSelect.value;
+    }
+
+    // Update hidden field when top dropdown changes
+    if (academicYearSelect) {
+        academicYearSelect.addEventListener('change', function() {
+            if (academicYearHidden) {
+                academicYearHidden.value = this.value;
+            }
+        });
+    }
+
+    if (ulscIdInput && deptSelect && ulscNameInput && ulscContactInput) {
+        // Enable/disable student ID field based on department selection
+        deptSelect.addEventListener('change', function() {
+            var selectedDeptId = this.value;
+            if (selectedDeptId) {
+                ulscIdInput.disabled = false;
+                ulscIdInput.placeholder = "Enter Student ID for selected department";
+            } else {
+                ulscIdInput.disabled = true;
+                ulscIdInput.value = '';
+                ulscIdInput.placeholder = "Select department first";
+                ulscNameInput.value = '';
+                ulscContactInput.value = '';
+                ulscNameInput.readOnly = true;
+                ulscContactInput.readOnly = true;
                 document.getElementById('studentNameDisplay').textContent = '';
                 document.getElementById('studentDeptDisplay').textContent = '';
                 lastStudentValid = false;
+            }
+        });
+
+        ulscIdInput.addEventListener('blur', function() {
+            var studentId = this.value.trim();
+            var selectedDeptId = deptSelect.value;
+
+            if (!studentId || !selectedDeptId) {
+                document.getElementById('studentNameDisplay').textContent = '';
+                document.getElementById('studentDeptDisplay').textContent = '';
+                ulscNameInput.value = '';
+                ulscContactInput.value = '';
+                lastStudentValid = false;
                 return;
             }
-            fetch('addulsc_s.php?ajax=student_info&student_id=' + encodeURIComponent(studentId))
+
+            fetch('addulsc_s.php?ajax=student_info&student_id=' + encodeURIComponent(studentId) + '&dept_id=' + encodeURIComponent(selectedDeptId))
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
                         document.getElementById('studentNameDisplay').textContent = data.student_name;
                         document.getElementById('studentDeptDisplay').textContent = data.dept_name;
-                        var ulscNameInput = document.querySelector('input[name="ulsc_name"]');
-                        if (ulscNameInput && !ulscNameInput.value) {
-                            ulscNameInput.value = data.student_name;
-                        }
-                        var deptSelect = document.querySelector('select[name="dept_id"]');
-                        if (deptSelect && data.dept_id) {
-                            deptSelect.value = data.dept_id;
-                        }
+                        ulscNameInput.value = data.student_name;
+                        ulscContactInput.value = data.contact;
                         lastStudentValid = true;
                     } else {
                         document.getElementById('studentNameDisplay').textContent = '';
                         document.getElementById('studentDeptDisplay').textContent = '';
-                        alert('Student not found!');
+                        ulscNameInput.value = '';
+                        ulscContactInput.value = '';
+                        alert('Student not found or does not belong to the selected department!');
                         lastStudentValid = false;
                     }
                 })
                 .catch(() => {
                     document.getElementById('studentNameDisplay').textContent = '';
                     document.getElementById('studentDeptDisplay').textContent = '';
+                    ulscNameInput.value = '';
+                    ulscContactInput.value = '';
                     alert('Error fetching student info!');
                     lastStudentValid = false;
                 });
         });
+
         // Prevent form submission if student not valid
         var ulscForm = ulscIdInput.closest('form');
         if (ulscForm) {
             ulscForm.addEventListener('submit', function(e) {
                 if (!lastStudentValid) {
-                    alert('Please enter a valid Student ID and wait for the student details to appear before submitting.');
+                    alert('Please enter a valid Student ID and ensure it belongs to the selected department before submitting.');
                     ulscIdInput.focus();
                     e.preventDefault();
                     return false;
+                }
+                
+                // Get academic year from top dropdown and set it in hidden field
+                var academicYearSelect = document.getElementById('academicYear');
+                var academicYearHidden = document.getElementById('academicYearHidden');
+                if (academicYearSelect && academicYearHidden) {
+                    academicYearHidden.value = academicYearSelect.value;
                 }
             });
         }
