@@ -111,8 +111,28 @@ if (isset($_POST['import'])) {
             } else {
                 try {
                     $dbh->beginTransaction();
-                    
+                    $missingStudentIds = [];
+                    $validRows = [];
                     foreach (array_slice($rows, 1) as $row) {
+                        $ulsc_id = $row[0];
+                        // Check if student exists
+                        $check_student = $dbh->prepare("SELECT COUNT(*) FROM student WHERE student_id = :student_id");
+                        $check_student->bindParam(':student_id', $ulsc_id, PDO::PARAM_STR);
+                        $check_student->execute();
+                        if ($check_student->fetchColumn() == 0) {
+                            $missingStudentIds[] = $ulsc_id;
+                        } else {
+                            $validRows[] = $row;
+                        }
+                    }
+                    if (!empty($missingStudentIds)) {
+                        $dbh->rollBack();
+                        $missingList = implode(', ', $missingStudentIds);
+                        echo "<script>alert('Error: The following Student IDs do not exist in the student table: $missingList'); window.location.href='addulsc_s.php';</script>";
+                        exit;
+                    }
+                    // All student IDs are valid, proceed with import
+                    foreach ($validRows as $row) {
                         $ulsc_id = $row[0]; 
                         $ulsc_name = $row[1]; 
                         $dept_id = $row[2]; 
@@ -162,6 +182,31 @@ if (isset($_POST['import'])) {
         echo "<script>alert('Error uploading file!'); window.location.href='addulsc_s.php';</script>";
         exit;
     }
+}
+
+// Handle AJAX request for student info (MUST be before any HTML output)
+if (isset($_GET['ajax']) && $_GET['ajax'] === 'student_info' && isset($_GET['student_id'])) {
+    header('Content-Type: application/json');
+    $student_id = $_GET['student_id'];
+    $stmt = $dbh->prepare("SELECT student_id, student_name, dept_id FROM student WHERE student_id = :student_id");
+    $stmt->bindParam(':student_id', $student_id, PDO::PARAM_STR);
+    $stmt->execute();
+    $student = $stmt->fetch(PDO::FETCH_ASSOC);
+    if ($student) {
+        $dept_stmt = $dbh->prepare("SELECT dept_name FROM departments WHERE dept_id = :dept_id");
+        $dept_stmt->bindParam(':dept_id', $student['dept_id'], PDO::PARAM_INT);
+        $dept_stmt->execute();
+        $dept = $dept_stmt->fetch(PDO::FETCH_ASSOC);
+        echo json_encode([
+            'success' => true,
+            'student_name' => $student['student_name'],
+            'dept_id' => $student['dept_id'],
+            'dept_name' => $dept['dept_name'] ?? ''
+        ]);
+    } else {
+        echo json_encode(['success' => false, 'message' => 'Student not found']);
+    }
+    exit;
 }
 
 // Handle form submission
@@ -491,8 +536,12 @@ if (isset($_POST['save_ulsc'])) {
                             <input type="hidden" name="id" value="<?= htmlspecialchars($id) ?>">
                             
                             <div class="form-group">
-                                <label>ULSC ID:</label>
-                                <input type="text" name="ulsc_id" class="input-field" value="<?= htmlspecialchars($ulsc_id) ?>" required>
+                                <label>ULSC ID (Student ID):</label>
+                                <input type="text" name="ulsc_id" class="input-field" value="<?= htmlspecialchars($ulsc_id) ?>" required id="ulscIdInput">
+                                <div style="margin-top: 5px;">
+                                    <strong>Name:</strong> <span id="studentNameDisplay"></span><br>
+                                    <strong>Department:</strong> <span id="studentDeptDisplay"></span>
+                                </div>
                             </div>
 
                             <div class="form-group">
@@ -792,6 +841,64 @@ document.addEventListener('DOMContentLoaded', function() {
     <script>
 window.academicYearsList = <?php echo json_encode($academicYears); ?>;
 </script>
+<script>
+let lastStudentValid = false;
+document.addEventListener('DOMContentLoaded', function() {
+    var ulscIdInput = document.getElementById('ulscIdInput');
+    if (ulscIdInput) {
+        ulscIdInput.addEventListener('blur', function() {
+            var studentId = this.value.trim();
+            if (!studentId) {
+                document.getElementById('studentNameDisplay').textContent = '';
+                document.getElementById('studentDeptDisplay').textContent = '';
+                lastStudentValid = false;
+                return;
+            }
+            fetch('addulsc_s.php?ajax=student_info&student_id=' + encodeURIComponent(studentId))
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        document.getElementById('studentNameDisplay').textContent = data.student_name;
+                        document.getElementById('studentDeptDisplay').textContent = data.dept_name;
+                        var ulscNameInput = document.querySelector('input[name="ulsc_name"]');
+                        if (ulscNameInput && !ulscNameInput.value) {
+                            ulscNameInput.value = data.student_name;
+                        }
+                        var deptSelect = document.querySelector('select[name="dept_id"]');
+                        if (deptSelect && data.dept_id) {
+                            deptSelect.value = data.dept_id;
+                        }
+                        lastStudentValid = true;
+                    } else {
+                        document.getElementById('studentNameDisplay').textContent = '';
+                        document.getElementById('studentDeptDisplay').textContent = '';
+                        alert('Student not found!');
+                        lastStudentValid = false;
+                    }
+                })
+                .catch(() => {
+                    document.getElementById('studentNameDisplay').textContent = '';
+                    document.getElementById('studentDeptDisplay').textContent = '';
+                    alert('Error fetching student info!');
+                    lastStudentValid = false;
+                });
+        });
+        // Prevent form submission if student not valid
+        var ulscForm = ulscIdInput.closest('form');
+        if (ulscForm) {
+            ulscForm.addEventListener('submit', function(e) {
+                if (!lastStudentValid) {
+                    alert('Please enter a valid Student ID and wait for the student details to appear before submitting.');
+                    ulscIdInput.focus();
+                    e.preventDefault();
+                    return false;
+                }
+            });
+        }
+    }
+});
+</script>
 </body>
 
 </html>
+

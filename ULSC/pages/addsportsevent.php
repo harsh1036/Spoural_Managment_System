@@ -1,5 +1,6 @@
 <?php
 include('../includes/config.php');
+include('../includes/session_management.php');
 
 if (!isset($_SESSION['ulsc_id'])) {
     header("Location: ../index.php");
