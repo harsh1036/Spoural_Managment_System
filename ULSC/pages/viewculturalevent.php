@@ -80,6 +80,31 @@ $dept_name = $ulsc['dept_name'];
       font-size: 1rem;
       margin: 0;
     }
+    .download-btn {
+    background-color: #A8C9FF; /* light blue */
+    color: white;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 20px;
+    font-size: 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+}
+
+.download-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.download-btn .pdf-icon {
+    width: 20px;
+    height: 20px;
+    filter: brightness(0) invert(1); /* make icon white */
+}
     </style>
 </head>
 
