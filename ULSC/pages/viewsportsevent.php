@@ -80,6 +80,31 @@ $dept_name = $ulsc['dept_name'];
       font-size: 1rem;
       margin: 0;
     }
+    .download-btn {
+    background-color: #A8C9FF; /* light blue */
+    color: white;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 20px;
+    font-size: 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+}
+
+.download-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.download-btn .pdf-icon {
+    width: 20px;
+    height: 20px;
+    filter: brightness(0) invert(1); /* make icon white */
+}
     </style>
 </head>
 
@@ -135,8 +160,9 @@ $dept_name = $ulsc['dept_name'];
                         <form method="POST" action="download_Sports_pdf.php">
                             <input type="hidden" name="selected_event_pdf" value="<?= htmlspecialchars($selected_event_id) ?>">
                             <input type="hidden" name="dept_id" value="<?= htmlspecialchars($dept_id ?? '') ?>">
-                            <button type="submit" name="download_pdf" class="download-btn" style="background-color: #007BFF;
-                                style="<?= empty($selected_event_id) || empty($participants) ? 'opacity: 0.5; pointer-events: none;' : '' ?>">
+
+                            <button type="submit" name="download_pdf" class="download-btn" 
+                                <?= empty($selected_event_id) || empty($participants) ? 'disabled' : '' ?>>
                                 <img src="../assets/images/pdf-icon.png" alt="PDF Icon" class="pdf-icon">
                                 Download Event Data
                             </button>
