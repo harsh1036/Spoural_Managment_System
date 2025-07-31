@@ -13,10 +13,10 @@ if (!$academic_year) die("Invalid academic year selected.");
 $type = $_GET['download_type'] ?? '';
 
 if ($type === 'event' && ($_GET['event_id'] ?? '') === 'all') {
-    // All events for the selected academic year
-    $sql = "SELECT p.*, s.student_name, e.event_name, d.dept_name AS department_name
+    // All events for the selected academic year - fetch all participants
+    $sql = "SELECT p.student_id, p.event_id, p.dept_id, s.student_name, e.event_name, d.dept_name AS department_name
             FROM participants p
-            JOIN student s ON s.student_id = CAST(p.student_id AS UNSIGNED)
+            JOIN student s ON s.student_id = p.student_id
             JOIN events e ON p.event_id = e.id
             LEFT JOIN departments d ON p.dept_id = d.dept_id
             WHERE p.academic_year_id = ?";
@@ -26,10 +26,10 @@ if ($type === 'event' && ($_GET['event_id'] ?? '') === 'all') {
     }
     $stmt->bind_param("s", $academic_year);
 } elseif ($type === 'department' && ($_GET['dept_id'] ?? '') === 'all') {
-    // All departments for the selected academic year
-    $sql = "SELECT p.*, s.student_name, e.event_name, d.dept_name AS department_name
+    // All departments for the selected academic year - fetch all participants
+    $sql = "SELECT p.student_id, p.event_id, p.dept_id, s.student_name, e.event_name, d.dept_name AS department_name
             FROM participants p
-            JOIN student s ON s.student_id = CAST(p.student_id AS UNSIGNED)
+            JOIN student s ON s.student_id = p.student_id
             JOIN events e ON p.event_id = e.id
             LEFT JOIN departments d ON p.dept_id = d.dept_id
             WHERE p.academic_year_id = ?";
@@ -42,9 +42,9 @@ if ($type === 'event' && ($_GET['event_id'] ?? '') === 'all') {
     $event_id = intval($_GET['event_id'] ?? 0);
     if (!$event_id) die("Invalid event selected.");
     // Fetch participants for this event
-    $sql = "SELECT p.*, s.student_name, e.event_name, d.dept_name AS department_name
+    $sql = "SELECT p.student_id, p.event_id, p.dept_id, s.student_name, e.event_name, d.dept_name AS department_name
             FROM participants p
-            JOIN student s ON s.student_id = CAST(p.student_id AS UNSIGNED)
+            JOIN student s ON s.student_id = p.student_id
             JOIN events e ON p.event_id = e.id
             LEFT JOIN departments d ON p.dept_id = d.dept_id
             WHERE p.event_id = ? AND p.academic_year_id = ?";
@@ -56,10 +56,10 @@ if ($type === 'event' && ($_GET['event_id'] ?? '') === 'all') {
 } elseif ($type === 'department') {
     $dept_id = intval($_GET['dept_id'] ?? 0);
     if (!$dept_id) die("Invalid department selected.");
-    // Fetch participants for this department (all events)
-    $sql = "SELECT p.*, s.student_name, e.event_name, d.dept_name AS department_name
+    // Fetch participants for this department
+    $sql = "SELECT p.student_id, p.event_id, p.dept_id, s.student_name, e.event_name, d.dept_name AS department_name
             FROM participants p
-            JOIN student s ON s.student_id = CAST(p.student_id AS UNSIGNED)
+            JOIN student s ON s.student_id = p.student_id
             JOIN events e ON p.event_id = e.id
             LEFT JOIN departments d ON p.dept_id = d.dept_id
             WHERE p.dept_id = ? AND p.academic_year_id = ?";
@@ -70,9 +70,9 @@ if ($type === 'event' && ($_GET['event_id'] ?? '') === 'all') {
     $stmt->bind_param("is", $dept_id, $academic_year);
 } elseif ($type === '' || empty($type)) {
     // No download_type provided: fetch all participants for the academic year
-    $sql = "SELECT p.*, s.student_name, e.event_name, d.dept_name AS department_name
+    $sql = "SELECT p.student_id, p.event_id, p.dept_id, s.student_name, e.event_name, d.dept_name AS department_name
             FROM participants p
-            JOIN student s ON s.student_id = CAST(p.student_id AS UNSIGNED)
+            JOIN student s ON s.student_id = p.student_id
             JOIN events e ON p.event_id = e.id
             LEFT JOIN departments d ON p.dept_id = d.dept_id
             WHERE p.academic_year_id = ?";

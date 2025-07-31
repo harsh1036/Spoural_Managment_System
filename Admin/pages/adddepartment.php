@@ -73,15 +73,13 @@ if (isset($_GET['edit_id'])) {
         echo "<script>alert('Database error: " . $e->getMessage() . "');</script>";
     }
 }
-
-// Handle file import
 if (isset($_POST['import'])) {
     if ($_FILES['excel_file']['error'] == UPLOAD_ERR_OK) {
         $file = $_FILES['excel_file']['tmp_name'];
 
         if ($xlsx = SimpleXLSX::parse($file)) {
             $rows = $xlsx->rows();
-            $expectedColumns = ['dept_id', 'dept_name'];
+            $expectedColumns = ['dept_id', 'dept_name', 'academic_year_id'];
 
             if ($rows[0] !== $expectedColumns) {
                 echo "<script>alert('Error: Column names do not match the expected format!'); window.location.href='adddepartment.php';</script>";
@@ -90,10 +88,24 @@ if (isset($_POST['import'])) {
                 try {
                     $dbh->beginTransaction();
 
-                    foreach (array_slice($rows, 1) as $row) {
+                    // Fetch valid academic year IDs from the database
+                    $validYearIds = [];
+                    $yearQuery = $dbh->query("SELECT id FROM academic_years");
+                    if ($yearQuery) {
+                        $validYearIds = array_column($yearQuery->fetchAll(PDO::FETCH_ASSOC), 'id');
+                    }
+
+                    foreach (array_slice($rows, 1) as $rowIndex => $row) {
                         $dept_id = $row[0];
                         $dept_name = $row[1];
+                        $academic_year_id = $row[2]; // Academic year ID from Excel
 
+                        // Check if the academic year ID is valid
+                        if (!in_array($academic_year_id, $validYearIds)) {
+                            throw new Exception("Academic year ID \"$academic_year_id\" not found in database. Valid IDs: " . implode(', ', $validYearIds) . ". Please check your Excel file row " . ($rowIndex + 2));
+                        }
+
+                        // Check if Department ID already exists
                         $check_sql = "SELECT COUNT(*) FROM departments WHERE dept_id = :dept_id";
                         $check_stmt = $dbh->prepare($check_sql);
                         $check_stmt->bindParam(':dept_id', $dept_id, PDO::PARAM_INT);
@@ -103,10 +115,11 @@ if (isset($_POST['import'])) {
                             throw new Exception("Department ID $dept_id already exists");
                         }
 
-                        $sql = "INSERT INTO departments (dept_id, dept_name) VALUES (:dept_id, :dept_name)";
+                        $sql = "INSERT INTO departments (dept_id, dept_name, academic_year_id) VALUES (:dept_id, :dept_name, :academic_year_id)";
                         $stmt = $dbh->prepare($sql);
                         $stmt->bindParam(':dept_id', $dept_id, PDO::PARAM_INT);
                         $stmt->bindParam(':dept_name', $dept_name, PDO::PARAM_STR);
+                        $stmt->bindParam(':academic_year_id', $academic_year_id, PDO::PARAM_INT);
                         $stmt->execute();
                     }
 
@@ -130,11 +143,94 @@ if (isset($_POST['import'])) {
     }
 }
 
-// Handle form submission
+// Handle file import
+// if (isset($_POST['import'])) {
+//     if ($_FILES['excel_file']['error'] == UPLOAD_ERR_OK) {
+//         $file = $_FILES['excel_file']['tmp_name'];
+
+//         if ($xlsx = SimpleXLSX::parse($file)) {
+//             $rows = $xlsx->rows();
+//             $expectedColumns = ['dept_id', 'dept_name'];
+
+//             if ($rows[0] !== $expectedColumns) {
+//                 echo "<script>alert('Error: Column names do not match the expected format!'); window.location.href='adddepartment.php';</script>";
+//                 exit;
+//             } else {
+//                 try {
+//                     $dbh->beginTransaction();
+
+//                     foreach (array_slice($rows, 1) as $row) {
+//                         $dept_id = $row[0];
+//                         $dept_name = $row[1];
+
+//                         $check_sql = "SELECT COUNT(*) FROM departments WHERE dept_id = :dept_id";
+//                         $check_stmt = $dbh->prepare($check_sql);
+//                         $check_stmt->bindParam(':dept_id', $dept_id, PDO::PARAM_INT);
+//                         $check_stmt->execute();
+
+//                         if ($check_stmt->fetchColumn() > 0) {
+//                             throw new Exception("Department ID $dept_id already exists");
+//                         }
+
+//                         $sql = "INSERT INTO departments (dept_id, dept_name) VALUES (:dept_id, :dept_name)";
+//                         $stmt = $dbh->prepare($sql);
+//                         $stmt->bindParam(':dept_id', $dept_id, PDO::PARAM_INT);
+//                         $stmt->bindParam(':dept_name', $dept_name, PDO::PARAM_STR);
+//                         $stmt->execute();
+//                     }
+
+//                     $dbh->commit();
+//                     echo "<script>alert('Data imported successfully!'); window.location.href='adddepartment.php';</script>";
+//                     exit;
+
+//                 } catch (Exception $e) {
+//                     $dbh->rollBack();
+//                     echo "<script>alert('Error: " . addslashes($e->getMessage()) . "'); window.location.href='adddepartment.php';</script>";
+//                     exit;
+//                 }
+//             }
+//         } else {
+//             echo "<script>alert('Failed to parse Excel file!'); window.location.href='adddepartment.php';</script>";
+//             exit;
+//         }
+//     } else {
+//         echo "<script>alert('Error uploading file!'); window.location.href='adddepartment.php';</script>";
+//         exit;
+//     }
+// }
+
+// // Handle form submission
+// if (isset($_POST['save_department'])) {
+//     $dept_name = $_POST['dept_name'];
+//     $dept_id = $_POST['dept_id'];
+//     $academic_year_id = isset($_POST['academic_year_id']) ? trim($_POST['academic_year_id']) : '';
+
+//     try {
+//         if (!empty($dept_id)) {
+//             $sql = "UPDATE departments SET dept_name = :name, academic_year_id = :academic_year_id WHERE dept_id = :id";
+//             $stmt = $dbh->prepare($sql);
+//             $stmt->bindParam(':id', $dept_id, PDO::PARAM_INT);
+//         } else {
+//             $sql = "INSERT INTO departments (dept_name, academic_year_id) VALUES (:name, :academic_year_id)";
+//             $stmt = $dbh->prepare($sql);
+//         }
+
+//         $stmt->bindParam(':name', $dept_name, PDO::PARAM_STR);
+//         $stmt->bindParam(':academic_year_id', $academic_year_id, PDO::PARAM_INT);
+
+//         if ($stmt->execute()) {
+//             echo "<script>alert('Department saved successfully!'); window.location.href='adddepartment.php';</script>";
+//         } else {
+//             echo "<script>alert('Error saving department!');</script>";
+//         }
+//     } catch (PDOException $e) {
+//         echo "<script>alert('Database error: " . $e->getMessage() . "');</script>";
+//     }
+// }
 if (isset($_POST['save_department'])) {
     $dept_name = $_POST['dept_name'];
     $dept_id = $_POST['dept_id'];
-    $academic_year_id = isset($_POST['academic_year_id']) ? trim($_POST['academic_year_id']) : '';
+    $academic_year_id = $_POST['academic_year_id']; // Get academic year ID from POST
 
     try {
         if (!empty($dept_id)) {
@@ -145,7 +241,6 @@ if (isset($_POST['save_department'])) {
             $sql = "INSERT INTO departments (dept_name, academic_year_id) VALUES (:name, :academic_year_id)";
             $stmt = $dbh->prepare($sql);
         }
-
         $stmt->bindParam(':name', $dept_name, PDO::PARAM_STR);
         $stmt->bindParam(':academic_year_id', $academic_year_id, PDO::PARAM_INT);
 
@@ -158,6 +253,7 @@ if (isset($_POST['save_department'])) {
         echo "<script>alert('Database error: " . $e->getMessage() . "');</script>";
     }
 }
+
 ?>
 
 <!DOCTYPE html>

@@ -21,7 +21,7 @@ $admin_username = $_SESSION['login'];
 $event_id = $event_name = $event_type = $min_participants = $max_participants = "";
 
 // Define the correct column headers
-$expectedColumns = ['event_name', 'event_type', 'min_participants', 'max_participants'];
+$expectedColumns = ['id','event_name', 'event_type', 'min_participants', 'max_participants','academic_year_id','status'];
 
 $message = "";
 
@@ -34,13 +34,9 @@ if ($yearQuery) {
 
 // Handle download template
 if (isset($_GET['download_template'])) {
-    // Fetch column names dynamically from the events table using PDO
-    $columns = [];
-    $stmt = $dbh->query("SHOW COLUMNS FROM events");
-    while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-        $columns[] = $row['Field'];
-    }
-    $data = [$columns]; // Column headers
+    // Use academic_year column for template (not academic_year_id)
+    $templateColumns = ['id','event_name', 'event_type', 'min_participants', 'max_participants','academic_year_id','status'];
+    $data = [$templateColumns]; // Column headers
     $xlsx = SimpleXLSXGen::fromArray($data);
     $xlsx->downloadAs('Events_Template.xlsx');
     exit;
@@ -125,40 +121,135 @@ if (isset($_POST['save_event'])) {
 }
 
 // Handle file upload and validation
+// if (isset($_POST['import'])) {
+//     if ($_FILES['excel_file']['error'] == UPLOAD_ERR_OK) {
+//         $file = $_FILES['excel_file']['tmp_name'];
+
+//         if ($xlsx = SimpleXLSX::parse($file)) {
+//             $rows = $xlsx->rows();
+
+//             // Validate column names - allow both academic_year and academic_year_id
+//             $actualColumns = $rows[0];
+//             $expectedColumnsWithYear = ['id','event_name', 'event_type', 'min_participants', 'max_participants','academic_year','status'];
+//             $expectedColumnsWithId = ['id','event_name', 'event_type', 'min_participants', 'max_participants','academic_year_id','status'];
+            
+//             if ($actualColumns !== $expectedColumnsWithYear && $actualColumns !== $expectedColumnsWithId) {
+//                 $expectedStr1 = implode(', ', $expectedColumnsWithYear);
+//                 $expectedStr2 = implode(', ', $expectedColumnsWithId);
+//                 $actualStr = implode(', ', $actualColumns);
+//                 echo "<script>alert('Error: Column names do not match!\\n\\nExpected either:\\n$expectedStr1\\n\\nor:\\n$expectedStr2\\n\\nActual: $actualStr'); window.location.href='addevent.php';</script>";
+//                 exit;
+//             } else {
+//                 try {
+//                     // Get valid academic year IDs
+//                     $validYearIds = array_column($academicYears, 'id');
+                    
+//                     // Create mapping for year names to IDs
+//                     $academicYearMapping = [];
+//                     foreach ($academicYears as $year) {
+//                         $academicYearMapping[$year['year']] = $year['id'];
+//                     }
+                    
+//                     foreach (array_slice($rows, 1) as $rowIndex => $row) {
+//                         $event_name = $row[0];
+//                         $event_type = $row[1];
+//                         $min_participants = $row[2];
+//                         $max_participants = $row[3];
+//                         $academic_year_name = $row[4]; // Academic year name from Excel
+
+//                         // Map academic year name to ID
+//                         if (isset($academicYearMapping[$academic_year_name])) {
+//                             $academic_year_id = $academicYearMapping[$academic_year_name];
+//                         } else {
+//                             echo "<script>alert('Error: Academic year \"$academic_year_name\" not found in database.\\n\\nValid years: " . implode(', ', array_keys($academicYearMapping)) . "\\n\\nPlease check your Excel file row " . ($rowIndex + 2) . "'); window.location.href='addevent.php';</script>";
+//                             exit;
+//                         }
+
+//                         // Insert new event with status = 1
+//                         $sql = "INSERT INTO events (event_name, event_type, min_participants, max_participants, academic_year_id, status) VALUES (:name, :type, :min, :max, :academic_year_id, 1)";
+//                         $stmt = $dbh->prepare($sql);
+//                         $stmt->bindParam(':name', $event_name, PDO::PARAM_STR);
+//                         $stmt->bindParam(':type', $event_type, PDO::PARAM_STR);
+//                         $stmt->bindParam(':min', $min_participants, PDO::PARAM_INT);
+//                         $stmt->bindParam(':max', $max_participants, PDO::PARAM_INT);
+//                         $stmt->bindParam(':academic_year_id', $academic_year_id, PDO::PARAM_INT);
+//                         $stmt->execute();
+//                     }
+//                     echo "<script>alert('Data imported successfully!'); window.location.href='addevent.php';</script>";
+//                     exit;
+//                 } catch (PDOException $e) {
+//                     echo "<script>alert('Database error: " . addslashes($e->getMessage()) . "'); window.location.href='addevent.php';</script>";
+//                     exit;
+//                 }
+//             }
+//         } else {
+//             echo "<script>alert('Failed to parse Excel file!'); window.location.href='addevent.php';</script>";
+//             exit;
+//         }
+//     } else {
+//         echo "<script>alert('Error uploading file!'); window.location.href='addevent.php';</script>";
+//         exit;
+//     }
+// }
 if (isset($_POST['import'])) {
     if ($_FILES['excel_file']['error'] == UPLOAD_ERR_OK) {
         $file = $_FILES['excel_file']['tmp_name'];
 
         if ($xlsx = SimpleXLSX::parse($file)) {
             $rows = $xlsx->rows();
+            $expectedColumns = ['id', 'event_name', 'event_type', 'min_participants', 'max_participants', 'academic_year_id', 'status'];
 
-            // Validate column names
             if ($rows[0] !== $expectedColumns) {
                 echo "<script>alert('Error: Column names do not match the expected format!'); window.location.href='addevent.php';</script>";
                 exit;
             } else {
                 try {
-                    foreach (array_slice($rows, 1) as $row) {
-                        $event_name = $row[0];
-                        $event_type = $row[1];
-                        $min_participants = $row[2];
-                        $max_participants = $row[3];
-                        $academic_year_id = $row[4]; // Assuming academic year is in the 5th column
+                    $dbh->beginTransaction();
 
-                        // Insert new event with status = 1
+                    // Fetch valid academic years from the database
+                    $academicYears = [];
+                    $yearQuery = $dbh->query("SELECT id, year FROM academic_years");
+                    if ($yearQuery) {
+                        $academicYears = $yearQuery->fetchAll(PDO::FETCH_ASSOC);
+                    }
+
+                    // Create a mapping for academic year names to IDs
+                    $academicYearMapping = [];
+                    foreach ($academicYears as $year) {
+                        $academicYearMapping[$year['year']] = $year['id'];
+                    }
+
+                    foreach (array_slice($rows, 1) as $rowIndex => $row) {
+                        $event_name = $row[1];
+                        $event_type = $row[2];
+                        $min_participants = $row[3];
+                        $max_participants = $row[4];
+                        $academic_year_name = $row[5]; // Academic year name from Excel
+
+                        // Map academic year name to ID
+                        if (isset($academicYearMapping[$academic_year_name])) {
+                            $academic_year_id = $academicYearMapping[$academic_year_name];
+                        } else {
+                            throw new Exception("Academic year \"$academic_year_name\" not found in database. Valid years: " . implode(', ', array_keys($academicYearMapping)) . ". Please check your Excel file row " . ($rowIndex + 2));
+                        }
+
                         $sql = "INSERT INTO events (event_name, event_type, min_participants, max_participants, academic_year_id, status) VALUES (:name, :type, :min, :max, :academic_year_id, 1)";
                         $stmt = $dbh->prepare($sql);
                         $stmt->bindParam(':name', $event_name, PDO::PARAM_STR);
                         $stmt->bindParam(':type', $event_type, PDO::PARAM_STR);
                         $stmt->bindParam(':min', $min_participants, PDO::PARAM_INT);
                         $stmt->bindParam(':max', $max_participants, PDO::PARAM_INT);
-                        $stmt->bindParam(':academic_year_id', $academic_year_id, PDO::PARAM_INT); // Changed to PARAM_INT
+                        $stmt->bindParam(':academic_year_id', $academic_year_id, PDO::PARAM_INT);
                         $stmt->execute();
                     }
+
+                    $dbh->commit();
                     echo "<script>alert('Data imported successfully!'); window.location.href='addevent.php';</script>";
                     exit;
-                } catch (PDOException $e) {
-                    echo "<script>alert('Database error: " . addslashes($e->getMessage()) . "'); window.location.href='addevent.php';</script>";
+
+                } catch (Exception $e) {
+                    $dbh->rollBack();
+                    echo "<script>alert('Error: " . addslashes($e->getMessage()) . "'); window.location.href='addevent.php';</script>";
                     exit;
                 }
             }
@@ -171,6 +262,7 @@ if (isset($_POST['import'])) {
         exit;
     }
 }
+
 ?>
 
 <!DOCTYPE html>

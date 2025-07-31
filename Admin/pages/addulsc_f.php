@@ -106,56 +106,68 @@ if (isset($_GET['download_template'])) {
 if (isset($_POST['import'])) {
     if ($_FILES['excel_file']['error'] == UPLOAD_ERR_OK) {
         $file = $_FILES['excel_file']['tmp_name'];
-        
+
         if ($xlsx = SimpleXLSX::parse($file)) {
             $rows = $xlsx->rows();
-            $expectedColumns = ['id', 'fullname', 'dept_id', 'contact_no', 'email']; // Updated expected columns
-            
-            // Validate column names
+            $expectedColumns = ['id', 'fullname', 'dept_id', 'contact_no', 'email','password','status', 'academic_year_id'];
+
             if ($rows[0] !== $expectedColumns) {
-                echo "<script>alert('Error: Column names do not match the expected format! Expected: " . implode(', ', $expectedColumns) . "'); window.location.href='addulsc_f.php';</script>";
+                echo "<script>alert('Error: Column names do not match the expected format!'); window.location.href='addulsc_f.php';</script>";
                 exit;
             } else {
                 try {
                     $dbh->beginTransaction();
-                    
-                    foreach (array_slice($rows, 1) as $row) {
-                        $id_excel = $row[0]; // 'id' from Excel
-                        $fullname = $row[1]; 
-                        $dept_id = $row[2]; 
+
+                    // Fetch valid academic year IDs from the database
+                    $validYearIds = [];
+                    $yearQuery = $dbh->query("SELECT id FROM academic_years");
+                    if ($yearQuery) {
+                        $validYearIds = array_column($yearQuery->fetchAll(PDO::FETCH_ASSOC), 'id');
+                    }
+
+                    foreach (array_slice($rows, 1) as $rowIndex => $row) {
+                        $id_excel = $row[0];
+                        $fullname = $row[1];
+                        $dept_id = $row[2];
                         $contact_no = $row[3];
-                        $email = $row[4]; // Get email from Excel
+                        $email = $row[4];
+                        $academic_year_id = $row[5]; // Academic year ID from Excel
+
+                        // Check if the academic year ID is valid
+                        if (!in_array($academic_year_id, $validYearIds)) {
+                            throw new Exception("Academic year ID \"$academic_year_id\" not found in database. Valid IDs: " . implode(', ', $validYearIds) . ". Please check your Excel file row " . ($rowIndex + 2));
+                        }
 
                         // Generate password
                         $plain_password = "1234";
                         $hashed_password = password_hash($plain_password, PASSWORD_BCRYPT);
 
-                        // Check if ULSC Faculty ID (which is 'id' in ulsc_f) already exists
-                        $check_sql = "SELECT COUNT(*) FROM ulsc_f WHERE id = :id"; // Changed table to ulsc_f, column to id
+                        // Check if ULSC Faculty ID already exists
+                        $check_sql = "SELECT COUNT(*) FROM ulsc_f WHERE id = :id";
                         $check_stmt = $dbh->prepare($check_sql);
-                        $check_stmt->bindParam(':id', $id_excel, PDO::PARAM_INT); // Bind as INT for 'id'
+                        $check_stmt->bindParam(':id', $id_excel, PDO::PARAM_INT);
                         $check_stmt->execute();
-                        
+
                         if ($check_stmt->fetchColumn() > 0) {
-                            throw new Exception("ULSC Faculty ID $id_excel already exists"); // Updated message
+                            throw new Exception("ULSC Faculty ID $id_excel already exists");
                         }
 
-                        $sql = "INSERT INTO ulsc_f (id, fullname, dept_id, contact_no, email, academic_year_id, password, status) VALUES (:id, :fullname, :dept_id, :contact_no, :email, :academic_year_id, :password, 1)"; // Changed table to ulsc_f, columns to fullname, contact_no, added status
+                        $sql = "INSERT INTO ulsc_f (id, fullname, dept_id, contact_no, email, academic_year_id, password, status) VALUES (:id, :fullname, :dept_id, :contact_no, :email, :academic_year_id, :password, 1)";
                         $stmt = $dbh->prepare($sql);
                         $stmt->bindParam(':id', $id_excel, PDO::PARAM_INT);
                         $stmt->bindParam(':fullname', $fullname, PDO::PARAM_STR);
                         $stmt->bindParam(':dept_id', $dept_id, PDO::PARAM_INT);
                         $stmt->bindParam(':contact_no', $contact_no, PDO::PARAM_STR);
                         $stmt->bindParam(':email', $email, PDO::PARAM_STR);
-                        $stmt->bindParam(':academic_year_id', $academic_year_id, PDO::PARAM_INT); // Bind academic_year_id
+                        $stmt->bindParam(':academic_year_id', $academic_year_id, PDO::PARAM_INT);
                         $stmt->bindParam(':password', $hashed_password, PDO::PARAM_STR);
                         $stmt->execute();
                     }
-                    
+
                     $dbh->commit();
                     echo "<script>alert('Data imported successfully!'); window.location.href='addulsc_f.php';</script>";
                     exit;
-                    
+
                 } catch (Exception $e) {
                     $dbh->rollBack();
                     echo "<script>alert('Error: " . addslashes($e->getMessage()) . "'); window.location.href='addulsc_f.php';</script>";
