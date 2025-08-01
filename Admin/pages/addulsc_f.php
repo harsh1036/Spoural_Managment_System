@@ -92,140 +92,173 @@ if (isset($_GET['download_template'])) {
     $columns = [];
     $stmt = $dbh->query("SHOW COLUMNS FROM ulsc_f");
     while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-        if (!in_array($row['Field'], ['password', 'status'])) {
+        
             $columns[] = $row['Field'];
-        }
+        
     }
     $data = [ $columns ]; // Column headers
     $xlsx = SimpleXLSXGen::fromArray($data);
     $xlsx->downloadAs('ULSC_Faculty_Template.xlsx');
     exit;
 }
-
-// Handle file upload and validation
+// Handle file upload and import
 if (isset($_POST['import'])) {
     if ($_FILES['excel_file']['error'] == UPLOAD_ERR_OK) {
         $file = $_FILES['excel_file']['tmp_name'];
-
-        if ($xlsx = SimpleXLSX::parse($file)) {
-            $rows = $xlsx->rows();
-            $expectedColumns = ['id', 'fullname', 'dept_id', 'contact_no', 'email','password','status', 'academic_year_id'];
-
-            if ($rows[0] !== $expectedColumns) {
-                echo "<script>alert('Error: Column names do not match the expected format!'); window.location.href='addulsc_f.php';</script>";
-                exit;
-            } else {
-                try {
-                    $dbh->beginTransaction();
-
-                    // Fetch valid academic year IDs from the database
-                    $validYearIds = [];
-                    $yearQuery = $dbh->query("SELECT id FROM academic_years");
-                    if ($yearQuery) {
-                        $validYearIds = array_column($yearQuery->fetchAll(PDO::FETCH_ASSOC), 'id');
-                    }
-
-                    foreach (array_slice($rows, 1) as $rowIndex => $row) {
-                        $id_excel = $row[0];
-                        $fullname = $row[1];
-                        $dept_id = $row[2];
-                        $contact_no = $row[3];
-                        $email = $row[4];
-                        $academic_year_id = $row[5]; // Academic year ID from Excel
-
-                        // Check if the academic year ID is valid
-                        if (!in_array($academic_year_id, $validYearIds)) {
-                            throw new Exception("Academic year ID \"$academic_year_id\" not found in database. Valid IDs: " . implode(', ', $validYearIds) . ". Please check your Excel file row " . ($rowIndex + 2));
-                        }
-
-                        // Generate password
-                        $plain_password = "1234";
-                        $hashed_password = password_hash($plain_password, PASSWORD_BCRYPT);
-
-                        // Check if ULSC Faculty ID already exists
-                        $check_sql = "SELECT COUNT(*) FROM ulsc_f WHERE id = :id";
-                        $check_stmt = $dbh->prepare($check_sql);
-                        $check_stmt->bindParam(':id', $id_excel, PDO::PARAM_INT);
-                        $check_stmt->execute();
-
-                        if ($check_stmt->fetchColumn() > 0) {
-                            throw new Exception("ULSC Faculty ID $id_excel already exists");
-                        }
-
-                        $sql = "INSERT INTO ulsc_f (id, fullname, dept_id, contact_no, email, academic_year_id, password, status) VALUES (:id, :fullname, :dept_id, :contact_no, :email, :academic_year_id, :password, 1)";
-                        $stmt = $dbh->prepare($sql);
-                        $stmt->bindParam(':id', $id_excel, PDO::PARAM_INT);
-                        $stmt->bindParam(':fullname', $fullname, PDO::PARAM_STR);
-                        $stmt->bindParam(':dept_id', $dept_id, PDO::PARAM_INT);
-                        $stmt->bindParam(':contact_no', $contact_no, PDO::PARAM_STR);
-                        $stmt->bindParam(':email', $email, PDO::PARAM_STR);
-                        $stmt->bindParam(':academic_year_id', $academic_year_id, PDO::PARAM_INT);
-                        $stmt->bindParam(':password', $hashed_password, PDO::PARAM_STR);
-                        $stmt->execute();
-                    }
-
-                    $dbh->commit();
-                    echo "<script>alert('Data imported successfully!'); window.location.href='addulsc_f.php';</script>";
-                    exit;
-
-                } catch (Exception $e) {
-                    $dbh->rollBack();
-                    echo "<script>alert('Error: " . addslashes($e->getMessage()) . "'); window.location.href='addulsc_f.php';</script>";
-                    exit;
+        
+        try {
+            if ($xlsx = SimpleXLSX::parse($file)) {
+                $rows = $xlsx->rows();
+                
+                if (empty($rows)) {
+                    throw new Exception("Excel file is empty");
                 }
+                
+                // Expected columns
+                $expectedColumns = ['id', 'fullname', 'dept_id', 'contact_no', 'email', 'password', 'status', 'academic_year_id'];
+                
+                // Validate column names
+                if ($rows[0] !== $expectedColumns) {
+                    throw new Exception("Column names do not match expected format");
+                }
+
+                // Load reference data
+                $deptStmt = $dbh->query("SELECT LOWER(dept_name), dept_id FROM departments");
+                $departments = $deptStmt->fetchAll(PDO::FETCH_KEY_PAIR);
+                
+                $yearStmt = $dbh->query("SELECT year, id FROM academic_years");
+                $academicYears = $yearStmt->fetchAll(PDO::FETCH_KEY_PAIR);
+                
+                $dbh->beginTransaction();
+                $successCount = 0;
+                $errors = [];
+
+                foreach (array_slice($rows, 1) as $i => $row) {
+                    try {
+                        // Process department (case-insensitive match)
+                        $deptName = trim($row[2]);
+                        $deptId = $departments[strtolower($deptName)] ?? null;
+                        if (!$deptId) {
+                            throw new Exception("Department '$deptName' not found");
+                        }
+
+                        // Process academic year
+                        $yearValue = trim($row[7]);
+                        $academicYearId = $academicYears[$yearValue] ?? null;
+                        if (!$academicYearId) {
+                            throw new Exception("Academic year '$yearValue' not found");
+                        }
+
+                        // Prepare data
+                        $data = [
+                            'id' => $row[0],
+                            'fullname' => $row[1],
+                            'dept_id' => $deptId,
+                            'contact_no' => $row[3],
+                            'email' => !empty($row[4]) ? $row[4] : "ulsc_f_".$row[0]."@charusat.edu.in",
+                            'password' => password_hash(!empty($row[5]) ? $row[5] : "1234", PASSWORD_BCRYPT),
+                            'status' => $row[6] ?? 1,
+                            'academic_year_id' => $academicYearId
+                        ];
+
+                        // Check for duplicate ID
+                        $check = $dbh->prepare("SELECT id FROM ulsc_f WHERE id = ?");
+                        $check->execute([$data['id']]);
+                        if ($check->fetch()) {
+                            throw new Exception("ID {$data['id']} already exists");
+                        }
+
+                        // Insert record
+                        $sql = "INSERT INTO ulsc_f 
+                                (id, fullname, dept_id, contact_no, email, password, status, academic_year_id) 
+                                VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+                        
+                        $stmt = $dbh->prepare($sql);
+                        if (!$stmt->execute([
+                            $data['id'], $data['fullname'], $data['dept_id'],
+                            $data['contact_no'], $data['email'], $data['password'],
+                            $data['status'], $data['academic_year_id']
+                        ])) {
+                            throw new Exception("Database error: " . implode(" ", $stmt->errorInfo()));
+                        }
+
+                        $successCount++;
+                        
+                    } catch (Exception $e) {
+                        $errors[] = "Row " . ($i + 2) . ": " . $e->getMessage();
+                    }
+                }
+
+                if (!empty($errors)) {
+                    $dbh->rollBack();
+                    $errorMsg = "Import completed with errors:\n" . implode("\n", array_slice($errors, 0, 5));
+                    if (count($errors) > 5) {
+                        $errorMsg .= "\n...and " . (count($errors) - 5) . " more errors";
+                    }
+                    echo "<script>alert('" . addslashes($errorMsg) . "');</script>";
+                } else {
+                    $dbh->commit();
+                    echo "<script>alert('Successfully imported $successCount records!'); window.location.href='addulsc_f.php';</script>";
+                }
+            } else {
+                throw new Exception("Failed to parse Excel file: " . SimpleXLSX::parseError());
             }
-        } else {
-            echo "<script>alert('Failed to parse Excel file!'); window.location.href='addulsc_f.php';</script>";
-            exit;
+        } catch (Exception $e) {
+            echo "<script>alert('Error: " . addslashes($e->getMessage()) . "');</script>";
         }
     } else {
-        echo "<script>alert('Error uploading file!'); window.location.href='addulsc_f.php';</script>";
-        exit;
+        echo "<script>alert('Error uploading file!');</script>";
     }
 }
-
-// Handle form submission
-if (isset($_POST['save_ulsc'])) {
-    error_log("Form submitted. POST data: " . print_r($_POST, true));
-    
+if (isset($_POST['submit'])) {
     try {
         // Get form data
-        $id_form = trim($_POST['id']); // This is the ULSC Faculty ID (primary key)
-        $fullname = trim($_POST['fullname']); // Changed to fullname
+        $id_form = trim($_POST['id']);
+        $fullname = trim($_POST['fullname']);
         $dept_id = trim($_POST['dept_id']);
-        $contact_no = trim($_POST['contact_no']); // Changed to contact_no
-        $email = trim($_POST['email']); // Get email from POST
-        $current_id = isset($_POST['current_id']) ? trim($_POST['current_id']) : ''; // Use a hidden field for original ID during edit
-        $academic_year_id = isset($_POST['academic_year_id']) ? trim($_POST['academic_year_id']) : ''; // Get academic year ID from POST
+        $contact_no = trim($_POST['contact_no']);
+        $email = trim($_POST['email']);
+        $current_id = isset($_POST['current_id']) ? trim($_POST['current_id']) : '';
+        $academic_year_id = isset($_POST['academic_year_id']) ? trim($_POST['academic_year_id']) : '';
 
         // Validate form data
         if (empty($id_form) || empty($fullname) || empty($dept_id) || empty($contact_no)) {
-            throw new Exception("All fields are required");
+            throw new Exception("All fields are required except email");
         }
 
-        // Generate password (only for new entries, or if you intend to re-set on edit)
+        // Generate email if not provided
+        if (empty($email)) {
+            $email = "ulsc_f_" . $id_form . "@charusat.edu.in";
+        }
+
+        // Generate password (only for new entries)
         $plain_password = "1234";
         $hashed_password = password_hash($plain_password, PASSWORD_BCRYPT);
 
         // Begin transaction
         $dbh->beginTransaction();
 
-        if (!empty($current_id)) { // If current_id is present, it's an update
-            // Update existing ULSC Faculty
-            $sql = "UPDATE ulsc_f SET id = :new_id, fullname = :fullname, dept_id = :dept_id, contact_no = :contact_no, email = :email, academic_year_id = :academic_year_id WHERE id = :current_id";
-            error_log("Update SQL: " . $sql);
+        if (!empty($current_id)) { // Update existing record
+            $sql = "UPDATE ulsc_f SET 
+                    id = :new_id, 
+                    fullname = :fullname, 
+                    dept_id = :dept_id, 
+                    contact_no = :contact_no, 
+                    email = :email, 
+                    academic_year_id = :academic_year_id 
+                    WHERE id = :current_id";
             
             $stmt = $dbh->prepare($sql);
-            $stmt->bindParam(':new_id', $id_form, PDO::PARAM_INT); // New ID for update
+            $stmt->bindParam(':new_id', $id_form, PDO::PARAM_INT);
             $stmt->bindParam(':fullname', $fullname, PDO::PARAM_STR);
             $stmt->bindParam(':dept_id', $dept_id, PDO::PARAM_INT);
             $stmt->bindParam(':contact_no', $contact_no, PDO::PARAM_STR);
             $stmt->bindParam(':email', $email, PDO::PARAM_STR);
-            $stmt->bindParam(':academic_year_id', $academic_year_id, PDO::PARAM_INT); // Bind academic_year_id
-            $stmt->bindParam(':current_id', $current_id, PDO::PARAM_INT); // Original ID
-        } else {
-            // Check if ULSC Faculty ID already exists for new entry
-            $check_sql = "SELECT COUNT(*) FROM ulsc_f WHERE id = :id"; // Changed table to ulsc_f, column to id
+            $stmt->bindParam(':academic_year_id', $academic_year_id, PDO::PARAM_INT);
+            $stmt->bindParam(':current_id', $current_id, PDO::PARAM_INT);
+        } else { // Insert new record
+            // Check if Faculty ID already exists
+            $check_sql = "SELECT COUNT(*) FROM ulsc_f WHERE id = :id";
             $check_stmt = $dbh->prepare($check_sql);
             $check_stmt->bindParam(':id', $id_form, PDO::PARAM_INT);
             $check_stmt->execute();
@@ -234,9 +267,10 @@ if (isset($_POST['save_ulsc'])) {
                 throw new Exception("ULSC Faculty ID already exists");
             }
 
-            // Insert new ULSC Faculty
-            $sql = "INSERT INTO ulsc_f (id, fullname, dept_id, contact_no, email, academic_year_id, password, status) VALUES (:id, :fullname, :dept_id, :contact_no, :email, :academic_year_id, :password, 1)"; // Changed table to ulsc_f, columns, added status
-            error_log("Insert SQL: " . $sql);
+            $sql = "INSERT INTO ulsc_f 
+                    (id, fullname, dept_id, contact_no, email, password, status, academic_year_id) 
+                    VALUES 
+                    (:id, :fullname, :dept_id, :contact_no, :email, :password, 1, :academic_year_id)";
             
             $stmt = $dbh->prepare($sql);
             $stmt->bindParam(':id', $id_form, PDO::PARAM_INT);
@@ -244,21 +278,18 @@ if (isset($_POST['save_ulsc'])) {
             $stmt->bindParam(':dept_id', $dept_id, PDO::PARAM_INT);
             $stmt->bindParam(':contact_no', $contact_no, PDO::PARAM_STR);
             $stmt->bindParam(':email', $email, PDO::PARAM_STR);
-            $stmt->bindParam(':academic_year_id', $academic_year_id, PDO::PARAM_INT); // Bind academic_year_id
             $stmt->bindParam(':password', $hashed_password, PDO::PARAM_STR);
+            $stmt->bindParam(':academic_year_id', $academic_year_id, PDO::PARAM_INT);
         }
 
         // Execute the query
         $result = $stmt->execute();
-        error_log("Query execution result: " . ($result ? "Success" : "Failed"));
         
         if ($result) {
             $dbh->commit();
-            if (empty($current_id)) { // Check for empty current_id for new entry
+            if (empty($current_id)) {
                 // Send email for new entries
-                // Consider if you want to send email with plain password for faculties.
-                // Assuming sendULSCEmail function exists and accepts these parameters.
-                if (sendULSCEmail($fullname, $email, $plain_password)) { // Pass fullname instead of ulsc_name
+                if (sendULSCEmail($fullname, $email, $plain_password)) {
                     $message = "ULSC Faculty added successfully with email: $email and default password: 1234";
                 } else {
                     $message = "ULSC Faculty added successfully with email: $email and default password: 1234. Email sending failed.";
@@ -273,8 +304,7 @@ if (isset($_POST['save_ulsc'])) {
 
     } catch (Exception $e) {
         $dbh->rollBack();
-        error_log("Error: " . $e->getMessage());
-        echo "<script>alert('Error: " . addslashes($e->getMessage()) . "');</script>";
+        echo "<script>alert('Error: " . addslashes($e->getMessage()) . "'); window.location.href='addulsc_f.php';</script>";
     }
 }
 

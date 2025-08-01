@@ -88,33 +88,36 @@ if (isset($_POST['import'])) {
                 try {
                     $dbh->beginTransaction();
 
-                    // Fetch valid academic year IDs from the database
-                    $validYearIds = [];
-                    $yearQuery = $dbh->query("SELECT id FROM academic_years");
-                    if ($yearQuery) {
-                        $validYearIds = array_column($yearQuery->fetchAll(PDO::FETCH_ASSOC), 'id');
+                    // 🔁 Map academic year name to ID
+                    $yearMap = [];
+                    $stmt = $dbh->query("SELECT id, year FROM academic_years");
+                    while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+                        $yearMap[$row['year']] = $row['id'];
                     }
 
                     foreach (array_slice($rows, 1) as $rowIndex => $row) {
                         $dept_id = $row[0];
                         $dept_name = $row[1];
-                        $academic_year_id = $row[2]; // Academic year ID from Excel
+                        $academic_year_text = trim($row[2]);
 
-                        // Check if the academic year ID is valid
-                        if (!in_array($academic_year_id, $validYearIds)) {
-                            throw new Exception("Academic year ID \"$academic_year_id\" not found in database. Valid IDs: " . implode(', ', $validYearIds) . ". Please check your Excel file row " . ($rowIndex + 2));
+                        // 🔁 Match name to ID
+                        if (!isset($yearMap[$academic_year_text])) {
+                            throw new Exception("Row " . ($rowIndex + 2) . ": Invalid Academic Year \"$academic_year_text\". Valid years: " . implode(', ', array_keys($yearMap)));
                         }
 
-                        // Check if Department ID already exists
+                        $academic_year_id = $yearMap[$academic_year_text];
+
+                        // ✅ Check if Department ID already exists
                         $check_sql = "SELECT COUNT(*) FROM departments WHERE dept_id = :dept_id";
                         $check_stmt = $dbh->prepare($check_sql);
                         $check_stmt->bindParam(':dept_id', $dept_id, PDO::PARAM_INT);
                         $check_stmt->execute();
 
                         if ($check_stmt->fetchColumn() > 0) {
-                            throw new Exception("Department ID $dept_id already exists");
+                            throw new Exception("Row " . ($rowIndex + 2) . ": Department ID $dept_id already exists.");
                         }
 
+                        // ✅ Insert
                         $sql = "INSERT INTO departments (dept_id, dept_name, academic_year_id) VALUES (:dept_id, :dept_name, :academic_year_id)";
                         $stmt = $dbh->prepare($sql);
                         $stmt->bindParam(':dept_id', $dept_id, PDO::PARAM_INT);
@@ -129,7 +132,7 @@ if (isset($_POST['import'])) {
 
                 } catch (Exception $e) {
                     $dbh->rollBack();
-                    echo "<script>alert('Error: " . addslashes($e->getMessage()) . "'); window.location.href='adddepartment.php';</script>";
+                    echo "<script>alert('Import failed: " . addslashes($e->getMessage()) . "'); window.location.href='adddepartment.php';</script>";
                     exit;
                 }
             }
@@ -142,7 +145,6 @@ if (isset($_POST['import'])) {
         exit;
     }
 }
-
 // Handle file import
 // if (isset($_POST['import'])) {
 //     if ($_FILES['excel_file']['error'] == UPLOAD_ERR_OK) {

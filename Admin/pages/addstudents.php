@@ -7,6 +7,19 @@ use Shuchkin\SimpleXLSX;
 include('../includes/session_management.php');
 include('../includes/config.php');
 
+// Enable error reporting
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
+
+// Check database connection
+try {
+    $dbh->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    error_log("Database connected successfully");
+} catch(PDOException $e) {
+    error_log("Connection failed: " . $e->getMessage());
+    die("Connection failed: " . $e->getMessage());
+}
+
 // Check if user is logged in, else redirect to login
 if (!isset($_SESSION['login'])) {
     header("Location: ../index.php");
@@ -64,13 +77,15 @@ if (isset($_GET['edit_id'])) {
 
 // Handle download template
 if (isset($_GET['download_template'])) {
-    // Fetch column names dynamically from the student table using PDO
-    $columns = [];
-    $stmt = $dbh->query("SHOW COLUMNS FROM student");
-    while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-        $columns[] = $row['Field'];
-    }
-    $data = [ $columns ]; // Column headers
+    // Create template with expected columns and sample data
+    // Note: status field has default value 1 and is not required in import
+    // Academic year can be either ID (number) or year name (e.g., "2024-25")
+    $data = [
+        ['student_id', 'student_name', 'contact', 'dept_id', 'academic_year_id'],
+        ['2021001', 'John Doe', '9876543210', '1', '2024-25'],
+        ['CS2021002', 'Jane Smith', '9876543211', '2', '1'],
+        ['IT2021003', 'Bob Wilson', '9876543212', '3', '2024-25']
+    ];
     $xlsx = SimpleXLSXGen::fromArray($data);
     $xlsx->downloadAs('Students_Template.xlsx');
     exit;
@@ -165,134 +180,148 @@ if (isset($_POST['submit'])) {
 }
 
 // Handle file import
-// if (isset($_POST['import'])) {
-//     if ($_FILES['excel_file']['error'] == UPLOAD_ERR_OK) {
-//         $file = $_FILES['excel_file']['tmp_name'];
-        
-//         if ($xlsx = SimpleXLSX::parse($file)) {
-//             $rows = $xlsx->rows();
-//             $expectedColumns = ['student_id', 'student_name', 'contact', 'dept_id','status','academic_year_id'];
-            
-//             // Validate column names
-//             if ($rows[0] !== $expectedColumns) {
-//                 echo "<script>alert('Error: Column names do not match the expected format!'); window.location.href='addstudents.php';</script>";
-//                 exit;
-//             } else {
-//                 try {
-//                     $dbh->beginTransaction();
-                    
-//                     foreach (array_slice($rows, 1) as $row) {
-//                         $student_id = $row[0]; 
-//                         $student_name = $row[1]; 
-//                         $contact = $row[2]; 
-//                         $dept_id = $row[3];
-
-//                         // Check if student ID already exists
-//                         $check_sql = "SELECT COUNT(*) FROM student WHERE student_id = :student_id";
-//                         $check_stmt = $dbh->prepare($check_sql);
-//                         $check_stmt->bindParam(':student_id', $student_id, PDO::PARAM_STR);
-//                         $check_stmt->execute();
-                        
-//                         if ($check_stmt->fetchColumn() > 0) {
-//                             throw new Exception("Student ID $student_id already exists");
-//                         }
-
-//                         $sql = "INSERT INTO student (student_id, student_name, contact, dept_id) VALUES (:student_id, :student_name, :contact, :dept_id)";
-//                         $stmt = $dbh->prepare($sql);
-//                         $stmt->bindParam(':student_id', $student_id, PDO::PARAM_STR);
-//                         $stmt->bindParam(':student_name', $student_name, PDO::PARAM_STR);
-//                         $stmt->bindParam(':contact', $contact, PDO::PARAM_STR);
-//                         $stmt->bindParam(':dept_id', $dept_id, PDO::PARAM_INT);
-//                         $stmt->execute();
-//                     }
-                    
-//                     $dbh->commit();
-//                     echo "<script>alert('Data imported successfully!'); window.location.href='addstudents.php';</script>";
-//                     exit;
-                    
-//                 } catch (Exception $e) {
-//                     $dbh->rollBack();
-//                     echo "<script>alert('Error: " . addslashes($e->getMessage()) . "'); window.location.href='addstudents.php';</script>";
-//                     exit;
-//                 }
-//             }
-//         } else {
-//             echo "<script>alert('Failed to parse Excel file!'); window.location.href='addstudents.php';</script>";
-//             exit;
-//         }
-//     } else {
-//         echo "<script>alert('Error uploading file!'); window.location.href='addstudents.php';</script>";
-//         exit;
-//     }
-// }
 if (isset($_POST['import'])) {
     if ($_FILES['excel_file']['error'] == UPLOAD_ERR_OK) {
         $file = $_FILES['excel_file']['tmp_name'];
 
         if ($xlsx = SimpleXLSX::parse($file)) {
             $rows = $xlsx->rows();
-            $expectedColumns = ['student_id', 'student_name', 'contact', 'dept_id', 'academic_year_id'];
+            $expectedColumns = ['student_id', 'student_name', 'contact', 'dept_id', 'status', 'academic_year_id'];
 
             if ($rows[0] !== $expectedColumns) {
-                echo "<script>alert('Error: Column names do not match the expected format!'); window.location.href='addstudents.php';</script>";
+                echo "<script>alert('Error: Column names do not match the expected format! Expected: " . implode(', ', $expectedColumns) . "'); window.location.href='addstudents.php';</script>";
                 exit;
-            } else {
-                try {
-                    $dbh->beginTransaction();
+            }
 
-                    // Fetch valid academic year IDs from the database
-                    $validYearIds = [];
-                    $yearQuery = $dbh->query("SELECT id FROM academic_years");
-                    if ($yearQuery) {
-                        $validYearIds = array_column($yearQuery->fetchAll(PDO::FETCH_ASSOC), 'id');
+            try {
+                $dbh->beginTransaction();
+
+                // Fetch valid departments
+                $validDeptIds = [];
+                $deptQuery = $dbh->query("SELECT dept_id FROM departments");
+                while ($dept = $deptQuery->fetch(PDO::FETCH_ASSOC)) {
+                    $validDeptIds[] = $dept['dept_id'];
+                }
+
+                // Fetch academic years
+                $validAcademicYears = [];
+                $yearQuery = $dbh->query("SELECT id, year FROM academic_years");
+                while ($year = $yearQuery->fetch(PDO::FETCH_ASSOC)) {
+                    $validAcademicYears[$year['year']] = $year['id'];
+                }
+
+                $errors = [];
+                $validRows = [];
+
+                foreach (array_slice($rows, 1) as $index => $row) {
+                    if (empty(array_filter($row))) continue;
+
+                    $rowNumber = $index + 2;
+                    list($student_id, $student_name, $contact, $dept_id, $status, $academic_year_value) = $row;
+
+                    // Validate required fields
+                    if (empty($student_id) || empty($student_name) || empty($dept_id)) {
+                        $errors[] = "Row $rowNumber: Required fields missing.";
+                        continue;
                     }
 
-                    foreach (array_slice($rows, 1) as $rowIndex => $row) {
-                        $student_id = $row[0];
-                        $student_name = $row[1];
-                        $contact = $row[2];
-                        $dept_id = $row[3];
-                        $academic_year_id = $row[4]; // Academic year ID from Excel
-
-                        // Check if the academic year ID is valid
-                        if (!in_array($academic_year_id, $validYearIds)) {
-                            throw new Exception("Academic year ID \"$academic_year_id\" not found in database. Valid IDs: " . implode(', ', $validYearIds) . ". Please check your Excel file row " . ($rowIndex + 2));
-                        }
-
-                        // Check if student ID already exists
-                        $check_sql = "SELECT COUNT(*) FROM student WHERE student_id = :student_id";
-                        $check_stmt = $dbh->prepare($check_sql);
-                        $check_stmt->bindParam(':student_id', $student_id, PDO::PARAM_STR);
-                        $check_stmt->execute();
-
-                        if ($check_stmt->fetchColumn() > 0) {
-                            throw new Exception("Student ID $student_id already exists");
-                        }
-
-                        $sql = "INSERT INTO student (student_id, student_name, contact, dept_id, academic_year_id) VALUES (:student_id, :student_name, :contact, :dept_id, :academic_year_id)";
-                        $stmt = $dbh->prepare($sql);
-                        $stmt->bindParam(':student_id', $student_id, PDO::PARAM_STR);
-                        $stmt->bindParam(':student_name', $student_name, PDO::PARAM_STR);
-                        $stmt->bindParam(':contact', $contact, PDO::PARAM_STR);
-                        $stmt->bindParam(':dept_id', $dept_id, PDO::PARAM_INT);
-                        $stmt->bindParam(':academic_year_id', $academic_year_id, PDO::PARAM_INT);
-                        $stmt->execute();
+                    // Validate student ID length
+                    if (strlen($student_id) > 10) {
+                        $errors[] = "Row $rowNumber: Student ID must be 10 characters or less.";
+                        continue;
                     }
 
-                    $dbh->commit();
-                    echo "<script>alert('Data imported successfully!'); window.location.href='addstudents.php';</script>";
-                    exit;
+                    // Validate contact number
+                    if (!empty($contact) && !preg_match('/^\d{10}$/', $contact)) {
+                        $errors[] = "Row $rowNumber: Contact must be 10 digits.";
+                        continue;
+                    }
 
-                } catch (Exception $e) {
+                    // Validate department ID
+                    if (!in_array($dept_id, $validDeptIds)) {
+                        $errors[] = "Row $rowNumber: Invalid department ID $dept_id.";
+                        continue;
+                    }
+
+                    // Handle status (default = 1)
+                    $status = ($status === '' || $status === null) ? 1 : (int)$status;
+
+                    // Validate academic year
+                    $academic_year_id = null;
+                    if ($academic_year_value !== '' && $academic_year_value !== null) {
+                        if (is_numeric($academic_year_value)) {
+                            $stmt = $dbh->prepare("SELECT id FROM academic_years WHERE id = ?");
+                            $stmt->execute([$academic_year_value]);
+                            if ($stmt->fetch()) {
+                                $academic_year_id = $academic_year_value;
+                            } else {
+                                $errors[] = "Row $rowNumber: Invalid academic year ID $academic_year_value.";
+                                continue;
+                            }
+                        } else {
+                            if (isset($validAcademicYears[$academic_year_value])) {
+                                $academic_year_id = $validAcademicYears[$academic_year_value];
+                            } else {
+                                $errors[] = "Row $rowNumber: Invalid academic year name $academic_year_value.";
+                                continue;
+                            }
+                        }
+                    }
+
+                    // Check duplicate
+                    $check_stmt = $dbh->prepare("SELECT COUNT(*) FROM student WHERE student_id = ?");
+                    $check_stmt->execute([$student_id]);
+                    if ($check_stmt->fetchColumn() > 0) {
+                        $errors[] = "Row $rowNumber: Student ID $student_id already exists.";
+                        continue;
+                    }
+
+                    $validRows[] = [
+                        'student_id' => $student_id,
+                        'student_name' => $student_name,
+                        'contact' => $contact,
+                        'dept_id' => $dept_id,
+                        'status' => $status,
+                        'academic_year_id' => $academic_year_id
+                    ];
+                }
+
+                // Show validation errors
+                if (!empty($errors)) {
                     $dbh->rollBack();
-                    echo "<script>alert('Error: " . addslashes($e->getMessage()) . "'); window.location.href='addstudents.php';</script>";
+                    echo "<script>alert('Validation errors: " . addslashes(implode('; ', $errors)) . "'); window.location.href='addstudents.php';</script>";
                     exit;
                 }
+
+                // Insert all valid records
+                foreach ($validRows as $data) {
+                    $stmt = $dbh->prepare("INSERT INTO student (student_id, student_name, contact, dept_id, status, academic_year_id)
+                        VALUES (:student_id, :student_name, :contact, :dept_id, :status, :academic_year_id)");
+                    $stmt->execute([
+                        ':student_id' => $data['student_id'],
+                        ':student_name' => $data['student_name'],
+                        ':contact' => $data['contact'],
+                        ':dept_id' => $data['dept_id'],
+                        ':status' => $data['status'],
+                        ':academic_year_id' => $data['academic_year_id']
+                    ]);
+                }
+
+                $dbh->commit();
+                echo "<script>alert('Data imported successfully! " . count($validRows) . " records inserted.'); window.location.href='addstudents.php';</script>";
+                exit;
+
+            } catch (Exception $e) {
+                $dbh->rollBack();
+                echo "<script>alert('Error: " . addslashes($e->getMessage()) . "'); window.location.href='addstudents.php';</script>";
+                exit;
             }
+
         } else {
             echo "<script>alert('Failed to parse Excel file!'); window.location.href='addstudents.php';</script>";
             exit;
         }
+
     } else {
         echo "<script>alert('Error uploading file!'); window.location.href='addstudents.php';</script>";
         exit;
